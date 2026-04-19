@@ -5,7 +5,7 @@
   "author": {
     "name": "n8n-vet"
   },
-  "repository": "https://github.com/n8n-vet/n8n-vet",
+  "repository": "https://github.com/Rakurai/n8n-vet",
   "license": "MIT",
   "keywords": ["n8n", "workflow", "validation", "testing", "mcp"],
   "userConfig": {

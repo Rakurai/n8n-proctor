@@ -6,31 +6,59 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-vet is a guardrailed validation control tool for agent-built n8n workflows. It reduces agent thrash by keeping validation local, bounded, diagnostic, and cheap — focusing on workflow slices and paths rather than whole-workflow reruns.
 
-**Status:** Pre-implementation. The repo contains design docs only (vision, PRD, scope, concepts, tech stack, feasibility, research). No source code, package.json, or build system exists yet.
+**Status:** v0.1.0 implemented. Phases 001–011 are complete (shared types, static analysis, trust, guardrails, execution, diagnostics, orchestrator, MCP/CLI surface, plugin wrapper, integration testing, audit remediations). Phase 012 (execution backend revision) is in progress.
 
-## Architecture (Locked Decisions)
+## Development Commands
 
-- **Language:** TypeScript on Node.js
-- **Product shape:** Standalone package with n8nac (n8n-as-code) as a dependency
-- **Primary interface:** MCP server (agent-facing, structured JSON input/output)
-- **Secondary interface:** CLI (development/debug only)
-- **Core architecture:** Library core with thin interface layers (MCP, CLI) on top
-- **Output format:** Structured JSON diagnostic summaries (primary), human-readable secondary
-- **Workflow source of truth:** Local n8n-as-code artifacts, not the n8n editor
-- **Static analysis:** Heuristic and high-value, not exhaustive — partial/pattern-based expression analysis is acceptable
-- **Execution backend:** Pragmatic choice between REST API, MCP tools, and package APIs — not locked to one
-- **Trusted boundaries:** Primarily derived from prior validation, not manually authored contracts
+```sh
+npm run build          # TypeScript compilation (tsc)
+npm test               # Run all tests (vitest)
+npm run test:watch     # Watch mode
+npm run test:integration  # Integration tests (tsx test/integration/run.ts)
+npm run typecheck      # Type-check without emitting (tsc --noEmit)
+npm run lint           # Lint with Biome (biome check src/)
+npm run lint:fix       # Auto-fix lint issues
+npm run format         # Format with Biome
+```
 
-## Key Domain Concepts
+Run a single test file: `npx vitest run test/guardrails/evaluate.test.ts`
 
-Understand these before working on the codebase (defined in `docs/CONCEPTS.md`):
+Run tests matching a pattern: `npx vitest run -t "pattern"`
 
-- **Workflow slice** — bounded region of the graph relevant to current change (the change unit)
-- **Workflow path** — concrete execution route through a slice (the validation unit)
-- **Trusted boundary** — previously validated, unchanged region treated as stable
-- **Guardrail** — product behavior that actively steers toward higher-value, lower-cost validation patterns
-- **Diagnostic summary** — compact validation output; must never devolve into pass spam or verbose transcripts
-- **Low-value rerun** — validation expected to provide little new information relative to cost
+Integration tests require a running n8n instance with MCP access.
+
+## Code Architecture
+
+ESM package (`"type": "module"`). Strict TypeScript. Node >= 20.
+
+The library core lives in `src/` with thin interface layers (MCP server, CLI) on top. The single barrel file is `src/index.ts` (package entry point). All other imports go directly to source files (no intermediate barrel files).
+
+**Subsystem pipeline** (data flows left to right):
+
+```
+parse → graph → trust → target → guardrails → static analysis → execution → diagnostics → trust update
+```
+
+| Subsystem | Location | Responsibility |
+|-----------|----------|----------------|
+| Static Analysis | `src/static-analysis/` | Graph parsing, expression tracing, data-loss detection, schema/param validation, node classification |
+| Trust | `src/trust/` | Content hashing, change detection, trust state persistence, rerun assessment |
+| Guardrails | `src/guardrails/` | Evaluate whether to proceed/narrow/redirect/refuse; evidence and narrowing logic |
+| Execution | `src/execution/` | MCP client (`test_workflow` — sole execution trigger, `get_execution` — data retrieval), pin data construction, capability detection (`'mcp' \| 'static-only'`) |
+| Diagnostics | `src/diagnostics/` | Synthesize structured summaries from static + execution results, error classification, hints |
+| Orchestrator | `src/orchestrator/` | Request interpretation, path selection, workflow snapshots |
+| MCP Surface | `src/mcp/` | MCP server exposing `validate`, `trust_status`, `explain` tools |
+| CLI | `src/cli/` | CLI commands and human-readable formatting |
+| Types | `src/types/` | Shared domain types (graph, slice, target, trust, guardrail, diagnostic, surface) |
+
+**Key wiring files:**
+- `src/deps.ts` — dependency injection container (`buildDeps`)
+- `src/surface.ts` — public surface helpers (trust status reports, guardrail explanations)
+- `src/errors.ts` — error mapping to MCP error types
+
+**Test structure:** Unit tests in `test/` mirror `src/` subsystem layout. Type-checking tests use `.test-d.ts` suffix. Integration tests in `test/integration/` with 8 scenarios covering the full pipeline.
+
+**Specs:** Each implementation phase has a full design package in `specs/NNN-feature-name/` with spec.md, plan.md, tasks.md, contracts/, research, and audit findings.
 
 ## Design Documents
 
@@ -45,8 +73,19 @@ Read these before making architectural decisions:
 | `docs/STRATEGY.md` | Validation strategy, named engineering patterns, locked heuristics |
 | `docs/CODING.md` | TypeScript best practices — all implementation code must follow these rules |
 | `docs/TECH.md` | Locked technology decisions |
-| `docs/FEASIBILITY.md` | Open research questions and proof points needed |
+| `docs/reference/INDEX.md` | Subsystem API reference docs |
 | `docs/research/` | Platform capability research (n8n, n8nac, field testing notes) |
+
+## Key Domain Concepts
+
+Understand these before working on the codebase (defined in `docs/CONCEPTS.md`):
+
+- **Workflow slice** — bounded region of the graph relevant to current change (the change unit)
+- **Workflow path** — concrete execution route through a slice (the validation unit)
+- **Trusted boundary** — previously validated, unchanged region treated as stable
+- **Guardrail** — product behavior that actively steers toward higher-value, lower-cost validation patterns
+- **Diagnostic summary** — compact validation output; must never devolve into pass spam or verbose transcripts
+- **Low-value rerun** — validation expected to provide little new information relative to cost
 
 ## Critical Constraints
 
@@ -76,3 +115,9 @@ These are non-negotiable product principles that should guide all implementation
 - For multi-line scripts: write to `.scratch/` first, then run. **Never use `python3 -c` or `bash -c` with inline multi-line code** — `#` characters (comments, dict literals, f-strings) after newlines inside quoted arguments trigger path-validation security warnings that block autonomous agents. Always write the script to `.scratch/` and execute the file.
 - **Never use compound shell commands** (`&&`, `||`, `;`, pipes). Each Bash call must be a single command. If you need sequential steps, make separate Bash calls or write a script to `.scratch/` and run it. Compound commands trigger approval prompts that block autonomous agents.
 - **Never use Bash for read-only verification.** File existence checks (`test -f`, `[ -f`), content searches (`grep -q`), and file listing loops (`for f in ...`) must use the Glob, Grep, or Read tools instead. Reserve Bash exclusively for commands that require execution (git, lint, test runners, docker, etc.).
+
+## Active Technologies
+- TypeScript 5.x, ESM, Node >= 20 + vitest (testing), biome (lint/format), zod (schema validation) (013-test-suite-audit)
+
+## Recent Changes
+- 013-test-suite-audit: Added TypeScript 5.x, ESM, Node >= 20 + vitest (testing), biome (lint/format), zod (schema validation)
