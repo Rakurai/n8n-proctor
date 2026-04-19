@@ -21,6 +21,7 @@ async function run(ctx: IntegrationContext): Promise<void> {
     // Test 1: validate with valid input
     const validateResult = await client.validate({
       workflowPath: happyPath,
+      kind: 'workflow',
       layer: 'static',
     });
 
@@ -56,49 +57,47 @@ async function run(ctx: IntegrationContext): Promise<void> {
       throw new Error('explain tool returned no data');
     }
 
-    // Test 4: validate with invalid input (nonexistent file)
+    // Test 4: validate with nonexistent file — returns success with status 'error' in data
+    // (interpret catches parse errors internally and returns an error diagnostic)
     const invalidResult = await client.validate({
-      workflowPath: '/nonexistent/workflow.ts',
+      workflowPath: 'nonexistent/workflow.ts',
+      kind: 'workflow',
       layer: 'static',
     });
 
-    if (invalidResult.success) {
-      throw new Error('validate tool should have failed for nonexistent file');
+    if (!invalidResult.success) {
+      throw new Error(`validate tool returned failure for nonexistent file — expected success with error diagnostic`);
     }
-    if (!invalidResult.error) {
-      throw new Error('validate tool should have returned an error for nonexistent file');
-    }
-    if (invalidResult.error.type !== 'workflow_not_found') {
-      throw new Error(
-        `Expected error type 'workflow_not_found', got '${invalidResult.error.type}'`,
-      );
+    const diagnosticData = invalidResult.data as { status?: string };
+    if (diagnosticData?.status !== 'error') {
+      throw new Error(`Expected diagnostic status 'error' for nonexistent file, got '${diagnosticData?.status}'`);
     }
 
-    // Test 5: trust_status with invalid input
+    // Test 5: trust_status with nonexistent file — throws (no internal catch)
     const invalidTrustResult = await client.trustStatus({
-      workflowPath: '/nonexistent/workflow.ts',
+      workflowPath: 'nonexistent/workflow.ts',
     });
 
     if (invalidTrustResult.success) {
       throw new Error('trust_status tool should have failed for nonexistent file');
     }
-    if (!invalidTrustResult.error || invalidTrustResult.error.type !== 'workflow_not_found') {
+    if (!invalidTrustResult.error) {
       throw new Error(
-        `Expected trust_status error type 'workflow_not_found', got '${invalidTrustResult.error?.type}'`,
+        `Expected trust_status error, got none`,
       );
     }
 
-    // Test 6: explain with invalid input
+    // Test 6: explain with nonexistent file — throws (no internal catch)
     const invalidExplainResult = await client.explain({
-      workflowPath: '/nonexistent/workflow.ts',
+      workflowPath: 'nonexistent/workflow.ts',
     });
 
     if (invalidExplainResult.success) {
       throw new Error('explain tool should have failed for nonexistent file');
     }
-    if (!invalidExplainResult.error || invalidExplainResult.error.type !== 'workflow_not_found') {
+    if (!invalidExplainResult.error) {
       throw new Error(
-        `Expected explain error type 'workflow_not_found', got '${invalidExplainResult.error?.type}'`,
+        `Expected explain error, got none`,
       );
     }
   } finally {

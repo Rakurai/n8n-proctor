@@ -109,15 +109,12 @@ async function main(): Promise<void> {
   }
 
   // Push all fixtures to n8n
-  console.log('\nPushing fixtures...');
-  try {
-    pushAllFixtures(ctx, args.verbose);
-    console.log('Fixtures pushed: OK\n');
-  } catch (err) {
-    console.error(`Fixture push failed: ${err instanceof Error ? err.message : String(err)}`);
-    ctx.cleanup();
-    process.exit(1);
-  }
+  // NOTE: Skipped — seed.ts already creates/updates workflows via REST API.
+  // If fixtures are modified locally, re-run `npx tsx test/integration/seed.ts`.
+  // n8nac push requires files to be inside the active sync scope, which doesn't
+  // match the flattened fixture layout. Fixing this properly requires rethinking
+  // the fixture directory structure.
+  console.log('Fixtures: using seeded workflows (run seed.ts to refresh)\n');
 
   // Load scenarios
   const scenarios = await loadScenarios(args.scenario ?? undefined);

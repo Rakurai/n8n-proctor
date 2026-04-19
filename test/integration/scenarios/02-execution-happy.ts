@@ -1,9 +1,12 @@
 /**
- * Scenario 02: Execution happy path
+ * Scenario 02: Execution happy path via n8n MCP
  *
- * Validates happy-path.ts with layer 'both'.
- * Asserts no static findings, execution success, diagnostic status 'pass',
- * and trust state updated for all nodes.
+ * Validates happy-path.ts with layer 'both' and a real callTool connected
+ * to n8n's native MCP server. The workflow executes successfully via
+ * test_workflow, producing execution data alongside static analysis.
+ *
+ * When N8N_MCP_TOKEN is not configured, falls back to verifying graceful
+ * degradation (execution skipped, static-only results).
  */
 
 import { resolve, join } from 'node:path';
@@ -23,8 +26,9 @@ async function run(ctx: IntegrationContext): Promise<void> {
       workflowPath: happyPath,
       target: { kind: 'workflow' },
       layer: 'both',
-      force: false,
+      force: true,
       pinData: null,
+      callTool: ctx.callTool ?? undefined,
     },
     deps,
   );
@@ -32,16 +36,28 @@ async function run(ctx: IntegrationContext): Promise<void> {
   assertStatus(result, 'pass');
   assertNoFindings(result);
 
-  if (result.executedPath === null) {
-    throw new Error('Expected executedPath to be non-null for layer "both"');
+  if (ctx.callTool) {
+    // With MCP: execution should have produced an executedPath
+    if (result.executedPath === null) {
+      throw new Error('Expected executedPath to be non-null when callTool is provided');
+    }
+
+    // Capabilities should report MCP tools available
+    if (!result.capabilities.mcpTools) {
+      throw new Error('Expected capabilities.mcpTools to be true');
+    }
+  } else {
+    // Without MCP: execution skipped gracefully
+    if (result.executedPath !== null) {
+      throw new Error('Expected executedPath to be null when no callTool is provided');
+    }
   }
 
-  // Verify trust state was updated for all nodes
+  // Verify trust state was updated for all nodes (pass → trust recorded)
   const trustReport = await buildTrustStatusReport(happyPath, deps);
-
   assertTrusted(trustReport, 'Trigger');
   assertTrusted(trustReport, 'Set');
-  assertTrusted(trustReport, 'NoOp');
+  assertTrusted(trustReport, 'Noop');
 }
 
 export const scenario: Scenario = { name: '02-execution-happy', run };
