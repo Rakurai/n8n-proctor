@@ -17,6 +17,24 @@ export { validateNodeParams } from './static-analysis/params.js';
 export { MalformedWorkflowError, ConfigurationError } from './static-analysis/errors.js';
 export { classifyNode } from './static-analysis/classify.js';
 
+// Trust subsystem — public functions
+export {
+  computeContentHash,
+  computeConnectionsHash,
+  computeWorkflowHash,
+} from './trust/hash.js';
+export { computeChangeSet } from './trust/change.js';
+export {
+  recordValidation,
+  invalidateTrust,
+  isTrusted,
+  getTrustedBoundaries,
+  getUntrustedNodes,
+  getRerunAssessment,
+} from './trust/trust.js';
+export { loadTrustState, persistTrustState } from './trust/persistence.js';
+export { TrustPersistenceError, ContentHashError } from './trust/errors.js';
+
 // Type re-exports — grouped by domain
 export type { NodeIdentity } from './types/identity.js';
 
@@ -61,6 +79,8 @@ export type {
   ExpressionReference,
   StaticAnalysisResult,
 } from './static-analysis/types.js';
+
+export type { RerunAssessment } from './trust/types.js';
 
 export type {
   NodeSchemaProvider,
