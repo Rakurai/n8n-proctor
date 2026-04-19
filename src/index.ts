@@ -127,3 +127,19 @@ export type {
   WorkflowSnapshot,
 } from './orchestrator/types.js';
 export { ValidationRequestSchema, deriveWorkflowId } from './orchestrator/types.js';
+
+// MCP surface — public API
+export { createServer } from './mcp/server.js';
+export { buildDeps } from './deps.js';
+export { buildTrustStatusReport, buildGuardrailExplanation } from './surface.js';
+
+// MCP surface types
+export type { McpError, McpErrorType, McpResponse } from './errors.js';
+export { mapToMcpError } from './errors.js';
+export type {
+  TrustStatusReport,
+  TrustedNodeInfo,
+  UntrustedNodeInfo,
+  GuardrailExplanation,
+  TargetResolutionInfo,
+} from './types/surface.js';
