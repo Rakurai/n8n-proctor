@@ -12,7 +12,8 @@ import { dirname, join } from 'node:path';
 import type { WorkflowGraph, GraphNode, Edge, NodeClassification } from '../types/graph.js';
 import type { WorkflowSnapshot, SerializedGraphNode, SerializedEdge } from './types.js';
 
-const SNAPSHOTS_DIR = '.n8n-vet/snapshots';
+const SNAPSHOTS_SUBDIR = 'snapshots';
+const DEFAULT_SNAPSHOTS_DIR = '.n8n-vet/snapshots';
 
 /** Load a previously saved workflow snapshot and reconstruct a WorkflowGraph. */
 export function loadSnapshot(workflowId: string, dataDir?: string): WorkflowGraph | null {
@@ -39,9 +40,17 @@ export function saveSnapshot(workflowId: string, graph: WorkflowGraph, dataDir?:
 }
 
 function snapshotPath(workflowId: string, dataDir?: string): string {
-  const base = dataDir ?? SNAPSHOTS_DIR;
+  const base = dataDir ?? resolveSnapshotsDir();
   const safeId = encodeURIComponent(workflowId);
   return join(base, `${safeId}.json`);
+}
+
+function resolveSnapshotsDir(): string {
+  const envDir = process.env.N8N_VET_DATA_DIR;
+  if (envDir) {
+    return join(envDir, SNAPSHOTS_SUBDIR);
+  }
+  return DEFAULT_SNAPSHOTS_DIR;
 }
 
 function serializeGraph(workflowId: string, graph: WorkflowGraph): WorkflowSnapshot {

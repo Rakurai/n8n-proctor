@@ -159,3 +159,55 @@ describe('deriveWorkflowId', () => {
     expect(id1).not.toBe(id2);
   });
 });
+
+describe('snapshot N8N_VET_DATA_DIR resolution', () => {
+  const ENV_KEY = 'N8N_VET_DATA_DIR';
+  const CUSTOM_DIR = join(resolve('.'), '.scratch/test-snapshots-env');
+  let originalEnv: string | undefined;
+
+  function cleanup() {
+    if (existsSync(CUSTOM_DIR)) {
+      rmSync(CUSTOM_DIR, { recursive: true, force: true });
+    }
+    const defaultDir = join(resolve('.'), '.n8n-vet/snapshots');
+    if (existsSync(defaultDir)) {
+      rmSync(defaultDir, { recursive: true, force: true });
+    }
+  }
+
+  afterEach(() => {
+    if (originalEnv === undefined) {
+      delete process.env[ENV_KEY];
+    } else {
+      process.env[ENV_KEY] = originalEnv;
+    }
+    cleanup();
+  });
+
+  it('uses N8N_VET_DATA_DIR/snapshots/ when env var is set', () => {
+    originalEnv = process.env[ENV_KEY];
+    process.env[ENV_KEY] = CUSTOM_DIR;
+
+    const graph = testGraph();
+    saveSnapshot('env-test-1', graph);
+    const expectedPath = join(CUSTOM_DIR, 'snapshots');
+    expect(existsSync(expectedPath)).toBe(true);
+
+    const loaded = loadSnapshot('env-test-1');
+    expect(loaded).not.toBeNull();
+    expect(loaded!.nodes.size).toBe(3);
+  });
+
+  it('uses .n8n-vet/snapshots when N8N_VET_DATA_DIR is absent', () => {
+    originalEnv = process.env[ENV_KEY];
+    delete process.env[ENV_KEY];
+
+    const graph = testGraph();
+    saveSnapshot('env-test-2', graph);
+    const defaultDir = join(resolve('.'), '.n8n-vet/snapshots');
+    expect(existsSync(defaultDir)).toBe(true);
+
+    const loaded = loadSnapshot('env-test-2');
+    expect(loaded).not.toBeNull();
+  });
+});

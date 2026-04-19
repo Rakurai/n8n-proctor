@@ -531,7 +531,7 @@ The following items were deferred to specification work and have since been reso
 - **Exact MCP tool definitions** → resolved in [mcp-surface.md](spec/mcp-surface.md): `validate`, `trust_status`, `explain` with full input/output schemas
 - **Exact CLI command structure** → resolved in [mcp-surface.md](spec/mcp-surface.md): `n8n-vet validate|trust|explain` with options mirroring MCP inputs
 - **Internal module boundaries or class hierarchies** → resolved in [PLAN.md](spec/PLAN.md): `src/static-analysis/`, `src/trust/`, `src/guardrails/`, `src/execution/`, `src/diagnostics/`, `src/orchestrator/`, `src/mcp/`, `src/cli/`
-- **Trust state persistence format or file location** → resolved in [trust-and-change.md](spec/trust-and-change.md): `.n8n-vet/trust-state.json` (standalone) or `${CLAUDE_PLUGIN_DATA}/trust/` (plugin mode)
+- **Trust state persistence format or file location** → resolved in [trust-and-change.md](spec/trust-and-change.md): `.n8n-vet/trust-state.json` (standalone) or `${CLAUDE_PLUGIN_DATA}/trust-state.json` (plugin mode)
 - **Diagnostic summary JSON schema** → resolved in [INDEX.md](spec/INDEX.md): `DiagnosticSummary` with all sub-types
 - **Pin data generation strategy** → resolved in [execution.md](spec/execution.md): four-tier sourcing (agent fixtures → cached artifacts → execution history → empty stubs)
 - **Push/deploy automation policy** → resolved in [execution.md](spec/execution.md): n8n-vet does not auto-push; push is the agent's responsibility via n8nac
