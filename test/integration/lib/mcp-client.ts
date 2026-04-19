@@ -14,8 +14,6 @@ export interface McpTestClient {
     layer?: string;
     force?: boolean;
     pinData?: Record<string, Array<{ json: Record<string, unknown> }>>;
-    destinationNode?: string;
-    destinationMode?: string;
   }): Promise<McpToolResponse>;
 
   trustStatus(input: {

@@ -81,7 +81,7 @@ function passSummary(resolvedTarget: ResolvedTarget, meta: ValidationMeta): Diag
     nodeAnnotations: [],
     guardrailActions: [],
     hints: [],
-    capabilities: { staticAnalysis: true, restApi: false, mcpTools: false },
+    capabilities: { staticAnalysis: true, restReadable: false, mcpTools: false },
     meta,
   };
 }
@@ -130,8 +130,7 @@ function createMockDeps(overrides?: Partial<OrchestratorDeps>): OrchestratorDeps
     detectDataLoss: vi.fn().mockReturnValue([]),
     checkSchemas: vi.fn().mockReturnValue([]),
     validateNodeParams: vi.fn().mockReturnValue([]),
-    executeBounded: vi.fn().mockResolvedValue({ executionId: 'exec-1', status: 'success', error: null, partial: true }),
-    executeSmoke: vi.fn().mockResolvedValue({ executionId: 'exec-1', status: 'success', error: null, partial: false }),
+    executeSmoke: vi.fn().mockResolvedValue({ executionId: 'exec-1', status: 'success', error: null }),
     getExecutionData: vi.fn().mockResolvedValue({}),
     constructPinData: vi.fn().mockReturnValue({ pinData: {}, sourceMap: {} }),
     synthesize: vi.fn().mockImplementation((input) => {
@@ -142,8 +141,8 @@ function createMockDeps(overrides?: Partial<OrchestratorDeps>): OrchestratorDeps
     loadSnapshot: vi.fn().mockReturnValue(previousGraph),
     saveSnapshot: vi.fn(),
     detectCapabilities: vi.fn().mockResolvedValue({
-      level: 'full',
-      restAvailable: true,
+      level: 'mcp',
+      restReadable: true,
       mcpAvailable: false,
       mcpTools: [],
     }),
@@ -160,8 +159,6 @@ describe('interpret() — changed-target static-only pipeline', () => {
     layer: 'static',
     force: false,
     pinData: null,
-    destinationNode: null,
-    destinationMode: 'inclusive',
   };
 
   it('produces a DiagnosticSummary for a changed-target static-only request', async () => {
@@ -246,8 +243,8 @@ describe('interpret() — changed-target static-only pipeline', () => {
         nodeAnnotations: [],
         guardrailActions: [],
         hints: [],
-        capabilities: { staticAnalysis: true, restApi: false, mcpTools: false },
-        meta: { runId: 'x', executionId: null, partialExecution: false, timestamp: '', durationMs: 0 },
+        capabilities: { staticAnalysis: true, restReadable: false, mcpTools: false },
+        meta: { runId: 'x', executionId: null, timestamp: '', durationMs: 0 },
       }),
     });
 
@@ -299,8 +296,6 @@ describe('interpret() — nodes-target pipeline (US2)', () => {
       layer: 'static',
       force: false,
       pinData: null,
-      destinationNode: null,
-      destinationMode: 'inclusive',
     };
 
     const result = await interpret(request, deps);
@@ -322,8 +317,6 @@ describe('interpret() — nodes-target pipeline (US2)', () => {
       layer: 'static',
       force: false,
       pinData: null,
-      destinationNode: null,
-      destinationMode: 'inclusive',
     };
 
     const result = await interpret(request, deps);
@@ -341,8 +334,6 @@ describe('interpret() — nodes-target pipeline (US2)', () => {
       layer: 'static',
       force: false,
       pinData: null,
-      destinationNode: null,
-      destinationMode: 'inclusive',
     };
 
     const result = await interpret(request, deps);
@@ -378,8 +369,6 @@ describe('interpret() — workflow-target with guardrail narrowing (US3)', () =>
       layer: 'static',
       force: false,
       pinData: null,
-      destinationNode: null,
-      destinationMode: 'inclusive',
     };
 
     const result = await interpret(request, deps);
@@ -414,8 +403,6 @@ describe('interpret() — workflow-target with guardrail narrowing (US3)', () =>
       layer: 'static',
       force: true,
       pinData: null,
-      destinationNode: null,
-      destinationMode: 'inclusive',
     };
 
     const result = await interpret(request, deps);
@@ -450,8 +437,6 @@ describe('interpret() — workflow-target with guardrail narrowing (US3)', () =>
       layer: 'static',
       force: false,
       pinData: null,
-      destinationNode: null,
-      destinationMode: 'inclusive',
     };
 
     const result = await interpret(request, deps);
@@ -470,8 +455,6 @@ describe('interpret() — guardrail routing (US4 T012)', () => {
     layer: 'static',
     force: false,
     pinData: null,
-    destinationNode: null,
-    destinationMode: 'inclusive',
   };
 
   it('refuse: returns skipped, no static/execution runs', async () => {
@@ -507,7 +490,7 @@ describe('interpret() — guardrail routing (US4 T012)', () => {
 
     expect(result.status).toBe('pass');
     expect(deps.detectDataLoss).toHaveBeenCalled();
-    expect(deps.executeBounded).not.toHaveBeenCalled();
+    expect(deps.executeSmoke).not.toHaveBeenCalled();
     expect(deps.executeSmoke).not.toHaveBeenCalled();
   });
 
@@ -564,12 +547,16 @@ describe('interpret() — execution-backed validation (US4 T014)', () => {
   });
 
   it('runs both static and execution for layer:both', async () => {
+    const callTool = vi.fn().mockResolvedValue({
+      execution: { id: 'exec-1', workflowId: 'wf-1', mode: 'cli', status: 'success', startedAt: '2026-01-01T00:00:00Z', stoppedAt: '2026-01-01T00:00:01Z' },
+      data: { resultData: { runData: {}, error: null, lastNodeExecuted: null } },
+    });
     const deps = createMockDeps({
       detectCapabilities: vi.fn().mockResolvedValue({
-        level: 'full',
-        restAvailable: true,
-        mcpAvailable: false,
-        mcpTools: [],
+        level: 'mcp',
+        restReadable: true,
+        mcpAvailable: true,
+        mcpTools: ['test_workflow'],
       }),
     });
 
@@ -579,24 +566,27 @@ describe('interpret() — execution-backed validation (US4 T014)', () => {
       layer: 'both',
       force: false,
       pinData: null,
-      destinationNode: 'end',
-      destinationMode: 'inclusive',
+      callTool,
     };
 
     const result = await interpret(request, deps);
 
     expect(result.status).toBe('pass');
     expect(deps.detectDataLoss).toHaveBeenCalled();
-    expect(deps.executeBounded).toHaveBeenCalled();
+    expect(deps.executeSmoke).toHaveBeenCalled();
   });
 
   it('runs execution only for layer:execution', async () => {
+    const callTool = vi.fn().mockResolvedValue({
+      execution: { id: 'exec-1', workflowId: 'wf-1', mode: 'cli', status: 'success', startedAt: '2026-01-01T00:00:00Z', stoppedAt: '2026-01-01T00:00:01Z' },
+      data: { resultData: { runData: {}, error: null, lastNodeExecuted: null } },
+    });
     const deps = createMockDeps({
       detectCapabilities: vi.fn().mockResolvedValue({
-        level: 'full',
-        restAvailable: true,
-        mcpAvailable: false,
-        mcpTools: [],
+        level: 'mcp',
+        restReadable: true,
+        mcpAvailable: true,
+        mcpTools: ['test_workflow'],
       }),
     });
 
@@ -606,15 +596,14 @@ describe('interpret() — execution-backed validation (US4 T014)', () => {
       layer: 'execution',
       force: false,
       pinData: null,
-      destinationNode: 'end',
-      destinationMode: 'inclusive',
+      callTool,
     };
 
     const result = await interpret(request, deps);
 
     expect(result.status).toBe('pass');
     expect(deps.detectDataLoss).not.toHaveBeenCalled();
-    expect(deps.executeBounded).toHaveBeenCalled();
+    expect(deps.executeSmoke).toHaveBeenCalled();
   });
 
   it('redirect from both to static means no execution', async () => {
@@ -634,57 +623,24 @@ describe('interpret() — execution-backed validation (US4 T014)', () => {
       layer: 'both',
       force: false,
       pinData: null,
-      destinationNode: null,
-      destinationMode: 'inclusive',
     };
 
     const result = await interpret(request, deps);
 
     expect(result.status).toBe('pass');
-    expect(deps.executeBounded).not.toHaveBeenCalled();
     expect(deps.executeSmoke).not.toHaveBeenCalled();
   });
 
-  it('uses inclusive/exclusive destination mode', async () => {
-    const deps = createMockDeps({
-      detectCapabilities: vi.fn().mockResolvedValue({
-        level: 'full',
-        restAvailable: true,
-        mcpAvailable: false,
-        mcpTools: [],
-      }),
-    });
-
-    const request: ValidationRequest = {
-      workflowPath: '/test/workflow.ts',
-      target: { kind: 'changed' },
-      layer: 'execution',
-      force: false,
-      pinData: null,
-      destinationNode: 'setNode',
-      destinationMode: 'exclusive',
-    };
-
-    await interpret(request, deps);
-
-    expect(deps.executeBounded).toHaveBeenCalledWith(
-      expect.any(String),
-      'setNode',
-      expect.any(Object),
-      expect.any(Object),
-      'exclusive',
-    );
-  });
-
   it('returns error on execution failure', async () => {
+    const callTool = vi.fn();
     const deps = createMockDeps({
       detectCapabilities: vi.fn().mockResolvedValue({
-        level: 'full',
-        restAvailable: true,
-        mcpAvailable: false,
-        mcpTools: [],
+        level: 'mcp',
+        restReadable: true,
+        mcpAvailable: true,
+        mcpTools: ['test_workflow'],
       }),
-      executeBounded: vi.fn().mockRejectedValue(new Error('Connection refused')),
+      executeSmoke: vi.fn().mockRejectedValue(new Error('Connection refused')),
     });
 
     const request: ValidationRequest = {
@@ -693,8 +649,7 @@ describe('interpret() — execution-backed validation (US4 T014)', () => {
       layer: 'execution',
       force: false,
       pinData: null,
-      destinationNode: 'end',
-      destinationMode: 'inclusive',
+      callTool,
     };
 
     const result = await interpret(request, deps);
@@ -711,8 +666,6 @@ describe('interpret() — trust persistence across runs (US5 T015)', () => {
     layer: 'static',
     force: false,
     pinData: null,
-    destinationNode: null,
-    destinationMode: 'inclusive',
   };
 
   it('records trust and persists on pass', async () => {
@@ -738,8 +691,8 @@ describe('interpret() — trust persistence across runs (US5 T015)', () => {
         nodeAnnotations: [],
         guardrailActions: [],
         hints: [],
-        capabilities: { staticAnalysis: true, restApi: false, mcpTools: false },
-        meta: { runId: 'x', executionId: null, partialExecution: false, timestamp: '', durationMs: 0 },
+        capabilities: { staticAnalysis: true, restReadable: false, mcpTools: false },
+        meta: { runId: 'x', executionId: null, timestamp: '', durationMs: 0 },
       }),
     });
 
@@ -816,8 +769,6 @@ describe('interpret() — multi-path validation (US6 T020)', () => {
       layer: 'static',
       force: false,
       pinData: null,
-      destinationNode: null,
-      destinationMode: 'inclusive',
     };
 
     await interpret(request, deps);
@@ -836,8 +787,6 @@ describe('interpret() — error conditions (T022)', () => {
     layer: 'static',
     force: false,
     pinData: null,
-    destinationNode: null,
-    destinationMode: 'inclusive',
   };
 
   it('returns error diagnostic when workflow file not found', async () => {
@@ -866,20 +815,21 @@ describe('interpret() — error conditions (T022)', () => {
     process.env['N8N_HOST'] = 'http://localhost:5678';
     process.env['N8N_API_KEY'] = 'test-api-key';
     try {
+      const callTool = vi.fn();
       const deps = createMockDeps({
         detectCapabilities: vi.fn().mockResolvedValue({
-          level: 'full',
-          restAvailable: true,
-          mcpAvailable: false,
-          mcpTools: [],
+          level: 'mcp',
+          restReadable: true,
+          mcpAvailable: true,
+          mcpTools: ['test_workflow'],
         }),
-        executeBounded: vi.fn().mockRejectedValue(new Error('Workflow not found on n8n')),
+        executeSmoke: vi.fn().mockRejectedValue(new Error('Workflow not found on n8n')),
       });
 
       const request: ValidationRequest = {
         ...baseRequest,
         layer: 'execution',
-        destinationNode: 'end',
+        callTool,
       };
 
       const result = await interpret(request, deps);
@@ -923,8 +873,8 @@ describe('interpret() — MCP smoke test path', () => {
     const callTool = vi.fn();
     const deps = createMockDeps({
       detectCapabilities: vi.fn().mockResolvedValue({
-        level: 'full',
-        restAvailable: true,
+        level: 'mcp',
+        restReadable: true,
         mcpAvailable: true,
         mcpTools: ['test_workflow'],
       }),
@@ -936,8 +886,6 @@ describe('interpret() — MCP smoke test path', () => {
       layer: 'execution',
       force: false,
       pinData: null,
-      destinationNode: null,
-      destinationMode: 'inclusive',
       callTool,
     };
 

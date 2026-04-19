@@ -105,7 +105,7 @@ export const PreparePinDataResponseSchema = z.object({
  * Execute whole workflow via MCP test_workflow tool.
  *
  * Synchronous — blocks until execution completes or 5-minute timeout.
- * Returns ExecutionResult with partial: false.
+ * Returns ExecutionResult.
  */
 export function executeSmoke(
   workflowId: string,
@@ -144,7 +144,6 @@ export function executeSmoke(
             context: {},
           }
         : null,
-      partial: false,
     };
   });
 }

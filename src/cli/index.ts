@@ -34,7 +34,6 @@ Options:
   --nodes <name,...>  Comma-separated node names (requires --target nodes)
   --layer <layer>     static, execution, or both (default: static)
   --force             Bypass guardrails
-  --destination <node> Destination node for bounded execution
   --json              Output raw JSON envelope`;
 
 // ── Argument parsing ────────────────────────────────────────────
@@ -94,7 +93,6 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
         nodes: { type: 'string' },
         layer: { type: 'string' },
         force: { type: 'boolean', default: false },
-        destination: { type: 'string' },
         json: { type: 'boolean', default: false },
       },
     });
@@ -144,7 +142,6 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
       target,
       layer,
       force: values.force ?? false,
-      destinationNode: values.destination ?? null,
     };
 
     const result = await runValidate(workflowPath, options, deps);

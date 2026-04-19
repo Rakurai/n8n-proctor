@@ -44,11 +44,11 @@ export async function detectCapabilities(options?: {
     // No credentials available — REST is not available
   }
 
-  // Step 2: Probe REST availability
-  let restAvailable = false;
+  // Step 2: Probe REST readability
+  let restReadable = false;
   if (credentials) {
     try {
-      restAvailable = await probeRest(credentials);
+      restReadable = await probeRest(credentials);
     } catch {
       // Network/auth errors → REST unavailable, degrade to static-only
     }
@@ -65,21 +65,14 @@ export async function detectCapabilities(options?: {
   }
 
   // Step 4: Check workflow if requested
-  if (options?.workflowId && restAvailable && credentials) {
+  if (options?.workflowId && restReadable && credentials) {
     await checkWorkflow(options.workflowId, credentials);
   }
 
-  // Determine capability level
-  let level: DetectedCapabilities['level'];
-  if (restAvailable && mcpAvailable) {
-    level = 'full';
-  } else if (restAvailable) {
-    level = 'rest-only';
-  } else {
-    level = 'static-only';
-  }
+  // Determine capability level — MCP is the sole execution backend
+  const level: DetectedCapabilities['level'] = mcpAvailable ? 'mcp' : 'static-only';
 
-  return { level, restAvailable, mcpAvailable, mcpTools };
+  return { level, restReadable, mcpAvailable, mcpTools };
 }
 
 // ---------------------------------------------------------------------------
@@ -93,7 +86,7 @@ export async function detectCapabilities(options?: {
 export function toAvailableCapabilities(detected: DetectedCapabilities): AvailableCapabilities {
   return {
     staticAnalysis: true,
-    restApi: detected.restAvailable,
+    restReadable: detected.restReadable,
     mcpTools: detected.mcpAvailable,
   };
 }

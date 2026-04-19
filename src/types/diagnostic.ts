@@ -93,7 +93,7 @@ export interface DiagnosticHint {
 export interface AvailableCapabilities {
   /** Static analysis is always available; no external dependencies required. */
   staticAnalysis: true;
-  restApi: boolean;
+  restReadable: boolean;
   mcpTools: boolean;
 }
 
@@ -103,8 +103,6 @@ export interface ValidationMeta {
   runId: string;
   /** n8n execution ID, if this run was execution-backed. */
   executionId: string | null;
-  /** Whether destinationNode was set, indicating partial execution. */
-  partialExecution: boolean;
   /** Timestamp of the validation run. */
   timestamp: string;
   /** Duration of the validation run in milliseconds. */

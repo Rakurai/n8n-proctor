@@ -1,9 +1,9 @@
 /**
  * Session-level execution lock preventing concurrent executions.
  *
- * Both executeBounded (REST) and executeSmoke (MCP) must check
- * this lock before starting. Second call while first is in-flight
- * throws ExecutionPreconditionError with reason 'execution-in-flight'.
+ * executeSmoke (MCP) must check this lock before starting.
+ * Second call while first is in-flight throws
+ * ExecutionPreconditionError with reason 'execution-in-flight'.
  *
  * The lock includes a timestamp and configurable expiry to handle
  * stale locks from crashed processes. Injectable for test isolation.

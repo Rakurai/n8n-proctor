@@ -1,9 +1,14 @@
 /**
- * Scenario 06: Bounded execution
+ * Scenario 06: Targeted node validation with pin data
  *
- * Push multi-node-change.ts, validate with target nodes ['B'],
- * destinationNode 'B', destinationMode 'inclusive', pin data for trigger.
- * Assert only trigger→A→B have execution results, C and D have none.
+ * Validates multi-node-change.ts with target nodes ['B'], pin data for trigger,
+ * and layer 'both'. Asserts that execution runs (MCP smoke test) and that
+ * the validation target is scoped to the requested nodes.
+ *
+ * NOTE: The previous version of this scenario tested bounded REST execution
+ * via destinationNode/destinationMode, which has been removed. Execution now
+ * uses MCP smoke tests (whole-workflow). This scenario verifies that targeted
+ * node validation still works with the new execution backend.
  */
 
 import { resolve, join } from 'node:path';
@@ -25,31 +30,21 @@ async function run(ctx: IntegrationContext): Promise<void> {
       pinData: {
         Trigger: [{ json: { value: 'test' } }],
       },
-      destinationNode: 'B',
-      destinationMode: 'inclusive',
     },
     deps,
   );
 
-  // Execution should have completed (pass or fail)
+  // Validation target should be scoped to the requested node(s)
+  const targetNodes = result.target.nodes.map(n => String(n));
+  if (!targetNodes.includes('B')) {
+    throw new Error(
+      `Expected node B in validation target, got: [${targetNodes.join(', ')}]`,
+    );
+  }
+
+  // Execution should have run (MCP smoke test runs whole workflow)
   if (result.executedPath === null) {
-    throw new Error('Expected execution to run with destinationNode set');
-  }
-
-  // Only trigger→A→B should be in the executed path
-  const executedNodeNames = result.executedPath.map(p => String(p.name));
-
-  // C and D should NOT be in the executed path
-  if (executedNodeNames.includes('C')) {
-    throw new Error(`Node C should not be executed with destinationNode 'B', but was in path: [${executedNodeNames.join(', ')}]`);
-  }
-  if (executedNodeNames.includes('D')) {
-    throw new Error(`Node D should not be executed with destinationNode 'B', but was in path: [${executedNodeNames.join(', ')}]`);
-  }
-
-  // B should be in the path (it's the destination)
-  if (!executedNodeNames.includes('B')) {
-    throw new Error(`Node B should be in executed path as destination, but path was: [${executedNodeNames.join(', ')}]`);
+    throw new Error('Expected execution to run with layer "both"');
   }
 }
 

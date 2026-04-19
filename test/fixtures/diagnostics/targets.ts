@@ -34,20 +34,19 @@ export const fiveNodeTarget: ResolvedTarget = {
 
 export const fullCapabilities: AvailableCapabilities = {
   staticAnalysis: true,
-  restApi: true,
+  restReadable: true,
   mcpTools: true,
 };
 
 export const staticOnlyCapabilities: AvailableCapabilities = {
   staticAnalysis: true,
-  restApi: false,
+  restReadable: false,
   mcpTools: false,
 };
 
 export const testMeta: ValidationMeta = {
   runId: 'run-001',
   executionId: null,
-  partialExecution: false,
   timestamp: '2026-04-18T12:00:00Z',
   durationMs: 150,
 };
@@ -55,7 +54,6 @@ export const testMeta: ValidationMeta = {
 export const executionMeta: ValidationMeta = {
   runId: 'run-002',
   executionId: 'exec-001',
-  partialExecution: true,
   timestamp: '2026-04-18T12:01:00Z',
   durationMs: 3200,
 };

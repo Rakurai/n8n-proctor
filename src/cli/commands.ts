@@ -22,7 +22,6 @@ export interface ValidateOptions {
   target: AgentTarget;
   layer: ValidationLayer;
   force: boolean;
-  destinationNode: string | null;
 }
 
 export interface ExplainOptions {
@@ -44,8 +43,6 @@ export async function runValidate(
       layer: options.layer,
       force: options.force,
       pinData: null,
-      destinationNode: options.destinationNode,
-      destinationMode: 'inclusive',
     };
     const summary = await interpret(request, deps);
     return { success: true, data: summary };

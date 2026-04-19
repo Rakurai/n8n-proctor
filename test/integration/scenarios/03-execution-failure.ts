@@ -24,8 +24,6 @@ async function run(ctx: IntegrationContext): Promise<void> {
       layer: 'execution',
       force: false,
       pinData: null,
-      destinationNode: null,
-      destinationMode: 'inclusive',
     },
     deps,
   );

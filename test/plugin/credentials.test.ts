@@ -42,7 +42,7 @@ describe('credentials and static-only mode', () => {
     // The orchestrator at interpret.ts:174-243 wraps detectCapabilities() in
     // try/catch. When resolveCredentials throws ExecutionConfigError, the catch
     // returns an error diagnostic via errorDiagnostic(). This means:
-    //   1. capabilities stays at default: { staticAnalysis: true, restApi: false, mcpTools: false }
+    //   1. capabilities stays at default: { staticAnalysis: true, restReadable: false, mcpTools: false }
     //   2. The system returns a diagnostic, not an unhandled exception
     //
     // We verify the structural guarantee: ExecutionConfigError is an Error subclass

@@ -111,7 +111,6 @@ describe('executeSmoke', () => {
 
     expect(result.executionId).toBe('e1');
     expect(result.status).toBe('success');
-    expect(result.partial).toBe(false);
     expect(result.error).toBeNull();
   });
 

@@ -25,8 +25,6 @@ async function run(ctx: IntegrationContext): Promise<void> {
       layer: 'static',
       force: false,
       pinData: null,
-      destinationNode: null,
-      destinationMode: 'inclusive',
     },
     deps,
   );
@@ -47,8 +45,6 @@ async function run(ctx: IntegrationContext): Promise<void> {
       layer: 'static',
       force: false,
       pinData: null,
-      destinationNode: null,
-      destinationMode: 'inclusive',
     },
     deps,
   );

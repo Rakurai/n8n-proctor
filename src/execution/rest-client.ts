@@ -1,9 +1,9 @@
 /**
- * REST API client for n8n execution.
+ * REST API client for n8n — read-only operations.
  *
- * Handles credential resolution from a 4-level config cascade,
- * bounded execution via POST /workflows/:id/run, and execution
- * status/data retrieval via GET /executions/:id.
+ * Handles credential resolution from a 4-level config cascade
+ * and execution status/data retrieval via GET /executions/:id.
+ * REST is not used for triggering execution (MCP is the sole backend).
  *
  * Zod schemas validate all REST API response boundaries per
  * constitution principle II (Contract-Driven Boundaries).
@@ -14,33 +14,12 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
 
-import type { NodeIdentity } from '../types/identity.js';
-import {
-  ExecutionConfigError,
-  ExecutionInfrastructureError,
-  ExecutionPreconditionError,
-} from './errors.js';
-import { withExecutionLock } from './lock.js';
-import type { PollStatusResult, PollingStrategy } from './poll.js';
-import { extractExecutionData } from './results.js';
-import type { RawResultData } from './results.js';
-import type {
-  ExecutionResult,
-  ExecutionStatus,
-  ExplicitCredentials,
-  PinData,
-  ResolvedCredentials,
-} from './types.js';
-import type { ExecutionData } from './types.js';
+import { ExecutionConfigError, ExecutionInfrastructureError } from './errors.js';
+import type { ExecutionStatus, ExplicitCredentials, ResolvedCredentials } from './types.js';
 
 // ---------------------------------------------------------------------------
-// Zod schemas — REST API response boundaries (T005)
+// Zod schemas — REST API response boundaries
 // ---------------------------------------------------------------------------
-
-/** Schema for POST /workflows/:id/run response (flat, no data wrapper). */
-export const TriggerExecutionResponseSchema = z.object({
-  executionId: z.string(),
-});
 
 /** Schema for GET /executions/:id response (flat, status-only fields). */
 export const ExecutionStatusResponseSchema = z.object({
@@ -272,87 +251,11 @@ function normalizeHost(host: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Bounded Execution (T009)
-// ---------------------------------------------------------------------------
-
-/**
- * Execute a bounded subgraph via n8n REST API.
- *
- * POST /workflows/:id/run with payload:
- *   { destinationNode: { nodeName, mode }, pinData }
- *
- * Maps HTTP errors to typed execution errors:
- *   404 → ExecutionPreconditionError (workflow-not-found)
- *   401 → ExecutionInfrastructureError (auth-failure)
- *   network → ExecutionInfrastructureError (unreachable)
- */
-export async function executeBounded(
-  workflowId: string,
-  destinationNodeName: string,
-  pinData: PinData,
-  credentials: ResolvedCredentials,
-  mode: 'inclusive' | 'exclusive' = 'inclusive',
-): Promise<ExecutionResult> {
-  return withExecutionLock(async () => {
-    const url = `${normalizeHost(credentials.host)}/api/v1/workflows/${workflowId}/run`;
-
-    const body = JSON.stringify({
-      destinationNode: { nodeName: destinationNodeName, mode },
-      pinData,
-    });
-
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        method: 'POST',
-        headers: authHeaders(credentials),
-        body,
-      });
-    } catch (err) {
-      throw new ExecutionInfrastructureError(
-        'unreachable',
-        `n8n unreachable at ${credentials.host}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new ExecutionPreconditionError(
-          'workflow-not-found',
-          `Workflow ${workflowId} not found in n8n. Push it first via n8nac.`,
-        );
-      }
-      if (response.status === 401 || response.status === 403) {
-        throw new ExecutionInfrastructureError(
-          'auth-failure',
-          `Authentication failed for ${credentials.host} (HTTP ${response.status})`,
-        );
-      }
-      throw new ExecutionInfrastructureError(
-        'unreachable',
-        `n8n returned HTTP ${response.status}: ${await response.text().catch(() => 'unknown error')}`,
-      );
-    }
-
-    const json: unknown = await response.json();
-    const parsed = TriggerExecutionResponseSchema.parse(json);
-
-    return {
-      executionId: parsed.executionId,
-      status: 'running' as ExecutionStatus,
-      error: null,
-      partial: true,
-    };
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Execution Status & Data Retrieval (T022 — REST-only polling path)
+// Execution Status & Data Retrieval — REST read-only path
 // ---------------------------------------------------------------------------
 
 /**
  * Get execution status (metadata only) via REST API.
- * Used as the REST-only polling strategy.
  */
 export async function getExecutionStatus(
   executionId: string,
@@ -433,38 +336,4 @@ export async function getExecutionData(
 
   const json: unknown = await response.json();
   return ExecutionDataResponseSchema.parse(json);
-}
-
-// ---------------------------------------------------------------------------
-// REST Polling Strategy (T022)
-// ---------------------------------------------------------------------------
-
-/**
- * Create a PollingStrategy backed by REST API calls.
- *
- * Used when MCP is unavailable. Status polling uses GET /executions/:id
- * (metadata only). Data retrieval uses GET /executions/:id?includeData=true
- * and extracts per-node results.
- *
- * Note: REST does not support nodeNames filtering or truncateData —
- * all node data is returned and filtered client-side by extractExecutionData.
- */
-export function createRestPollingStrategy(credentials: ResolvedCredentials): PollingStrategy {
-  return {
-    checkStatus(executionId: string): Promise<PollStatusResult> {
-      return getExecutionStatus(executionId, credentials);
-    },
-
-    async retrieveData(
-      executionId: string,
-      nodeNames: NodeIdentity[],
-      _truncateData: number,
-    ): Promise<ExecutionData> {
-      const response = await getExecutionData(executionId, credentials);
-      const resultData = response.data.resultData;
-      const status = response.status as ExecutionStatus;
-
-      return extractExecutionData(resultData as RawResultData, status, nodeNames as string[]);
-    },
-  };
 }

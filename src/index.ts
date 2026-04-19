@@ -101,7 +101,7 @@ export { evaluate } from './guardrails/evaluate.js';
 export type { EvaluationInput } from './guardrails/types.js';
 
 // Execution — public API
-export { executeBounded, getExecutionData } from './execution/rest-client.js';
+export { getExecutionData } from './execution/rest-client.js';
 export { executeSmoke } from './execution/mcp-client.js';
 export { constructPinData } from './execution/pin-data.js';
 export { detectCapabilities } from './execution/capabilities.js';

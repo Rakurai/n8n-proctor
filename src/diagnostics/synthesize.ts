@@ -119,13 +119,12 @@ const SynthesisInputSchema = z.object({
   }),
   capabilities: z.object({
     staticAnalysis: z.literal(true),
-    restApi: z.boolean(),
+    restReadable: z.boolean(),
     mcpTools: z.boolean(),
   }),
   meta: z.object({
     runId: z.string().min(1),
     executionId: z.string().nullable(),
-    partialExecution: z.boolean(),
     timestamp: z.string().min(1),
     durationMs: z.number().nonnegative(),
   }),

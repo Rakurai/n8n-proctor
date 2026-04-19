@@ -1,25 +1,19 @@
 /**
- * Unit tests for REST client request shaping.
+ * Unit tests for REST client credential resolution and response schema validation.
  *
- * Covers: payload shape per research R1 (destinationNode with nodeName),
- * auth header inclusion, error mapping for 404/401/unreachable.
+ * Covers: credential resolution from explicit config / env / fallback,
+ * Zod schema validation for execution status and workflow responses.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { nodeIdentity } from '../../src/types/identity.js';
-import { ExecutionInfrastructureError, ExecutionPreconditionError } from '../../src/execution/errors.js';
-import type { PinData } from '../../src/execution/types.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import {
   resolveCredentials,
-  executeBounded,
-  TriggerExecutionResponseSchema,
   ExecutionStatusResponseSchema,
   ExecutionDataResponseSchema,
   WorkflowResponseSchema,
 } from '../../src/execution/rest-client.js';
 import { ExecutionConfigError } from '../../src/execution/errors.js';
-import { releaseExecutionLock } from '../../src/execution/lock.js';
 
 // ---------------------------------------------------------------------------
 // resolveCredentials
@@ -99,19 +93,6 @@ describe('resolveCredentials', () => {
 // Zod schema validation
 // ---------------------------------------------------------------------------
 
-describe('TriggerExecutionResponseSchema', () => {
-  it('parses valid trigger response', () => {
-    const result = TriggerExecutionResponseSchema.parse({
-      executionId: 'exec-123',
-    });
-    expect(result.executionId).toBe('exec-123');
-  });
-
-  it('rejects missing executionId', () => {
-    expect(() => TriggerExecutionResponseSchema.parse({})).toThrow();
-  });
-});
-
 describe('ExecutionStatusResponseSchema', () => {
   it('parses valid status response', () => {
     const result = ExecutionStatusResponseSchema.parse({
@@ -160,114 +141,3 @@ describe('WorkflowResponseSchema', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// executeBounded
-// ---------------------------------------------------------------------------
-
-describe('executeBounded', () => {
-  const credentials = { host: 'https://n8n.test', apiKey: 'key-123' };
-  const workflowId = 'wf-abc';
-  const destinationNodeName = 'TargetNode';
-  const pinData: PinData = { TriggerNode: [{ json: { x: 1 } }] };
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    releaseExecutionLock();
-  });
-
-  it('returns ExecutionResult with executionId, status running, partial true on 200', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify({ executionId: 'exec-123' }), { status: 200 }),
-    );
-
-    const result = await executeBounded(workflowId, destinationNodeName, pinData, credentials);
-
-    expect(result.executionId).toBe('exec-123');
-    expect(result.status).toBe('running');
-    expect(result.partial).toBe(true);
-  });
-
-  it('sends correct URL, method, auth header, and body shape', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify({ executionId: 'exec-456' }), { status: 200 }),
-    );
-
-    await executeBounded(workflowId, destinationNodeName, pinData, credentials, 'exclusive');
-
-    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://n8n.test/api/v1/workflows/wf-abc/run');
-    expect(init.method).toBe('POST');
-    expect((init.headers as Record<string, string>)['X-N8N-API-KEY']).toBe('key-123');
-    const body = JSON.parse(init.body as string) as unknown;
-    expect(body).toMatchObject({
-      destinationNode: { nodeName: destinationNodeName, mode: 'exclusive' },
-      pinData,
-    });
-  });
-
-  it('throws ExecutionPreconditionError workflow-not-found on 404', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('Not Found', { status: 404 }),
-    );
-
-    const err = await executeBounded(workflowId, destinationNodeName, pinData, credentials)
-      .catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(ExecutionPreconditionError);
-    expect(err).toMatchObject({ reason: 'workflow-not-found' });
-  });
-
-  it('throws ExecutionInfrastructureError auth-failure on 401', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('Unauthorized', { status: 401 }),
-    );
-
-    const err = await executeBounded(workflowId, destinationNodeName, pinData, credentials)
-      .catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(ExecutionInfrastructureError);
-    expect(err).toMatchObject({ reason: 'auth-failure' });
-  });
-
-  it('throws ExecutionInfrastructureError unreachable on network error', async () => {
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('ECONNREFUSED'));
-
-    const err = await executeBounded(workflowId, destinationNodeName, pinData, credentials)
-      .catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(ExecutionInfrastructureError);
-    expect(err).toMatchObject({ reason: 'unreachable' });
-  });
-
-  it('throws ExecutionPreconditionError execution-in-flight when another is in progress', async () => {
-    // First call hangs so the lock is held when the second call is made.
-    let resolveFirst!: (value: Response) => void;
-    const firstFetch = new Promise<Response>((res) => { resolveFirst = res; });
-    vi.spyOn(globalThis, 'fetch').mockReturnValueOnce(firstFetch);
-
-    const firstCall = executeBounded(workflowId, destinationNodeName, pinData, credentials);
-
-    await expect(
-      executeBounded(workflowId, destinationNodeName, pinData, credentials),
-    ).rejects.toMatchObject({ reason: 'execution-in-flight' });
-
-    // Resolve the first call so the lock is released cleanly.
-    resolveFirst(
-      new Response(JSON.stringify({ executionId: 'exec-789' }), { status: 200 }),
-    );
-    await firstCall;
-  });
-
-  it('allows a second call after the first completes', async () => {
-    vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ executionId: 'exec-1' }), { status: 200 }),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ executionId: 'exec-2' }), { status: 200 }),
-      );
-
-    const first = await executeBounded(workflowId, destinationNodeName, pinData, credentials);
-    const second = await executeBounded(workflowId, destinationNodeName, pinData, credentials);
-
-    expect(first.executionId).toBe('exec-1');
-    expect(second.executionId).toBe('exec-2');
-  });
-});

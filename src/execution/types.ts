@@ -67,12 +67,11 @@ export function isTerminalStatus(status: ExecutionStatus): boolean {
   return TERMINAL_STATUSES.has(status);
 }
 
-/** Outcome of triggering an execution (bounded or smoke). */
+/** Outcome of triggering an execution. */
 export interface ExecutionResult {
   executionId: string;
   status: ExecutionStatus;
   error: ExecutionErrorData | null;
-  partial: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -136,12 +135,12 @@ export interface ExecutionHint {
 // ---------------------------------------------------------------------------
 
 /** Summary capability level of the execution environment. */
-export type CapabilityLevel = 'full' | 'rest-only' | 'static-only';
+export type CapabilityLevel = 'mcp' | 'static-only';
 
 /** Detected execution environment capabilities. */
 export interface DetectedCapabilities {
   level: CapabilityLevel;
-  restAvailable: boolean;
+  restReadable: boolean;
   mcpAvailable: boolean;
   mcpTools: string[];
 }

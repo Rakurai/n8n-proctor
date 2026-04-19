@@ -92,7 +92,6 @@ function passSummary(): DiagnosticSummary {
   const meta: ValidationMeta = {
     runId: 'run-1',
     executionId: null,
-    partialExecution: false,
     timestamp: '2026-01-01T00:00:00Z',
     durationMs: 10,
   };
@@ -106,7 +105,7 @@ function passSummary(): DiagnosticSummary {
     nodeAnnotations: [],
     guardrailActions: [],
     hints: [],
-    capabilities: { staticAnalysis: true, restApi: false, mcpTools: false },
+    capabilities: { staticAnalysis: true, restReadable: false, mcpTools: false },
     meta,
   };
 }
@@ -139,16 +138,15 @@ function createMockDeps(overrides?: Partial<OrchestratorDeps>): OrchestratorDeps
     detectDataLoss: vi.fn().mockReturnValue([]),
     checkSchemas: vi.fn().mockReturnValue([]),
     validateNodeParams: vi.fn().mockReturnValue([]),
-    executeBounded: vi.fn().mockResolvedValue({ executionId: 'exec-1', status: 'success', error: null, partial: true }),
-    executeSmoke: vi.fn().mockResolvedValue({ executionId: 'exec-1', status: 'success', error: null, partial: false }),
+    executeSmoke: vi.fn().mockResolvedValue({ executionId: 'exec-1', status: 'success', error: null }),
     getExecutionData: vi.fn().mockResolvedValue({}),
     constructPinData: vi.fn().mockReturnValue({ pinData: {}, sourceMap: {} }),
     synthesize: vi.fn().mockReturnValue(passSummary()),
     loadSnapshot: vi.fn().mockReturnValue(graph),
     saveSnapshot: vi.fn(),
     detectCapabilities: vi.fn().mockResolvedValue({
-      level: 'full',
-      restAvailable: true,
+      level: 'mcp',
+      restReadable: true,
       mcpAvailable: false,
       mcpTools: [],
     }),
@@ -342,8 +340,8 @@ describe('MCP server — explain tool', () => {
   it('maps capabilities from detected capabilities', async () => {
     const deps = createMockDeps({
       detectCapabilities: vi.fn().mockResolvedValue({
-        level: 'rest-only',
-        restAvailable: true,
+        level: 'static-only',
+        restReadable: true,
         mcpAvailable: false,
         mcpTools: [],
       }),
@@ -356,8 +354,8 @@ describe('MCP server — explain tool', () => {
 
     expect(envelope.success).toBe(true);
     if (envelope.success) {
-      const explanation = envelope.data as { capabilities: { restApi: boolean; mcpTools: boolean } };
-      expect(explanation.capabilities.restApi).toBe(true);
+      const explanation = envelope.data as { capabilities: { restReadable: boolean; mcpTools: boolean } };
+      expect(explanation.capabilities.restReadable).toBe(true);
       expect(explanation.capabilities.mcpTools).toBe(false);
     }
   });

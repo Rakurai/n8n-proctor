@@ -23,7 +23,7 @@ import { evaluate } from './guardrails/evaluate.js';
 import { detectCapabilities } from './execution/capabilities.js';
 import { executeSmoke } from './execution/mcp-client.js';
 import { constructPinData } from './execution/pin-data.js';
-import { executeBounded, getExecutionData } from './execution/rest-client.js';
+import { getExecutionData } from './execution/rest-client.js';
 
 import { synthesize } from './diagnostics/synthesize.js';
 
@@ -44,7 +44,6 @@ export function buildDeps(): OrchestratorDeps {
     invalidateTrust,
     recordValidation,
     evaluate,
-    executeBounded,
     executeSmoke,
     getExecutionData,
     constructPinData,

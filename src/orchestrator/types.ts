@@ -42,8 +42,6 @@ export const ValidationRequestSchema = z.object({
   layer: ValidationLayerSchema,
   force: z.boolean(),
   pinData: z.record(z.array(z.object({ json: z.record(z.unknown()) }).passthrough())).nullable(),
-  destinationNode: z.string().min(1).nullable(),
-  destinationMode: z.enum(['inclusive', 'exclusive']),
 });
 
 // ── ValidationRequest ─────────────────────────────────────────────
@@ -55,8 +53,6 @@ export interface ValidationRequest {
   layer: ValidationLayer;
   force: boolean;
   pinData: PinData | null;
-  destinationNode: string | null;
-  destinationMode: 'inclusive' | 'exclusive';
   callTool?: McpToolCaller;
 }
 
@@ -121,13 +117,6 @@ export interface OrchestratorDeps {
   ) => StaticFinding[];
 
   // Execution
-  executeBounded: (
-    workflowId: string,
-    destinationNodeName: string,
-    pinData: PinData,
-    credentials: ResolvedCredentials,
-    mode?: 'inclusive' | 'exclusive',
-  ) => Promise<ExecutionResult>;
   executeSmoke: (
     workflowId: string,
     pinData: PinData,

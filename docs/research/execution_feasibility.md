@@ -371,3 +371,15 @@ n8n-vet **must use the REST API** for its core bounded-execution feature. The MC
 3. Either the MCP `get_execution` tool or the REST execution API for polling results
 
 The n8nac client at `packages/cli/src/core/services/n8n-api-client.ts` already has an authenticated REST client pattern that could serve as reference, though it does not currently use `destinationNode` or partial execution.
+
+---
+
+## Errata
+
+Added: 2026-04-19 (during phase 012-execution-backend-revision implementation)
+
+1. **`POST /workflows/:id/run` is internal/editor-only.** This endpoint is not accessible via API key authentication. It is gated behind session-based auth used by the n8n editor UI. External clients authenticating with an API key cannot call it. The research above correctly identifies this as the only surface with `destinationNode` support, but incorrectly assumes it is available to external API consumers.
+
+2. **The n8n REST public API is read-only for executions.** The public API (authenticated via API key) exposes only GET endpoints for executions — listing and retrieving execution data. There are no public POST endpoints for triggering workflow runs. Workflow execution by external clients must go through MCP tools (`test_workflow`, `execute_workflow`) or webhooks.
+
+3. **Impact on n8n-vet architecture.** The "Critical Implication" section's recommendation to use `POST /workflows/:id/run` for bounded execution is not feasible with API key auth. Bounded execution via `destinationNode` is only available to the editor frontend. n8n-vet must rely on MCP tools for execution triggering, which means whole-workflow runs only (no partial execution). This was confirmed empirically during phase 012 implementation.

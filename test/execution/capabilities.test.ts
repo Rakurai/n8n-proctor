@@ -1,7 +1,7 @@
 /**
  * Unit tests for capability detection.
  *
- * Covers: n8n reachable + auth = rest-only, n8n + auth + MCP = full,
+ * Covers: n8n reachable + auth = static-only, n8n + auth + MCP = mcp,
  * unreachable → infrastructure error, auth failure → infrastructure error,
  * workflow not found → precondition error with push advice,
  * toAvailableCapabilities mapper.
@@ -17,10 +17,10 @@ import { ExecutionInfrastructureError, ExecutionPreconditionError } from '../../
 // ---------------------------------------------------------------------------
 
 describe('toAvailableCapabilities', () => {
-  it('maps full capabilities', () => {
+  it('maps mcp capabilities', () => {
     const detected: DetectedCapabilities = {
-      level: 'full',
-      restAvailable: true,
+      level: 'mcp',
+      restReadable: true,
       mcpAvailable: true,
       mcpTools: ['test_workflow', 'get_execution', 'prepare_test_pin_data'],
     };
@@ -28,15 +28,15 @@ describe('toAvailableCapabilities', () => {
     const available = toAvailableCapabilities(detected);
     expect(available).toEqual({
       staticAnalysis: true,
-      restApi: true,
+      restReadable: true,
       mcpTools: true,
     });
   });
 
-  it('maps rest-only capabilities', () => {
+  it('maps static-only capabilities (REST available but no MCP)', () => {
     const detected: DetectedCapabilities = {
-      level: 'rest-only',
-      restAvailable: true,
+      level: 'static-only',
+      restReadable: true,
       mcpAvailable: false,
       mcpTools: [],
     };
@@ -44,15 +44,15 @@ describe('toAvailableCapabilities', () => {
     const available = toAvailableCapabilities(detected);
     expect(available).toEqual({
       staticAnalysis: true,
-      restApi: true,
+      restReadable: true,
       mcpTools: false,
     });
   });
 
-  it('maps static-only capabilities', () => {
+  it('maps static-only capabilities (no REST, no MCP)', () => {
     const detected: DetectedCapabilities = {
       level: 'static-only',
-      restAvailable: false,
+      restReadable: false,
       mcpAvailable: false,
       mcpTools: [],
     };
@@ -60,7 +60,7 @@ describe('toAvailableCapabilities', () => {
     const available = toAvailableCapabilities(detected);
     expect(available).toEqual({
       staticAnalysis: true,
-      restApi: false,
+      restReadable: false,
       mcpTools: false,
     });
   });
@@ -71,32 +71,32 @@ describe('toAvailableCapabilities', () => {
 // ---------------------------------------------------------------------------
 
 describe('DetectedCapabilities type', () => {
-  it('represents full capability with all MCP tools', () => {
+  it('represents mcp capability with all MCP tools', () => {
     const caps: DetectedCapabilities = {
-      level: 'full',
-      restAvailable: true,
+      level: 'mcp',
+      restReadable: true,
       mcpAvailable: true,
       mcpTools: ['test_workflow', 'get_execution', 'prepare_test_pin_data'],
     };
-    expect(caps.level).toBe('full');
+    expect(caps.level).toBe('mcp');
     expect(caps.mcpTools).toHaveLength(3);
   });
 
   it('level corresponds to available surfaces', () => {
     const levels: Array<[CapabilityLevel, boolean, boolean]> = [
-      ['full', true, true],
-      ['rest-only', true, false],
+      ['mcp', true, true],
+      ['static-only', true, false],
       ['static-only', false, false],
     ];
 
     for (const [level, rest, mcp] of levels) {
       const caps: DetectedCapabilities = {
         level,
-        restAvailable: rest,
+        restReadable: rest,
         mcpAvailable: mcp,
         mcpTools: mcp ? ['test_workflow'] : [],
       };
-      expect(caps.restAvailable).toBe(rest);
+      expect(caps.restReadable).toBe(rest);
       expect(caps.mcpAvailable).toBe(mcp);
     }
   });
@@ -121,20 +121,20 @@ describe('detectCapabilities', () => {
     vi.restoreAllMocks();
   });
 
-  it('REST available, no MCP → level rest-only', async () => {
+  it('REST available, no MCP → level static-only', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ data: [] }), { status: 200 }),
     );
 
     const result = await detectCapabilities();
 
-    expect(result.level).toBe('rest-only');
-    expect(result.restAvailable).toBe(true);
+    expect(result.level).toBe('static-only');
+    expect(result.restReadable).toBe(true);
     expect(result.mcpAvailable).toBe(false);
     expect(result.mcpTools).toEqual([]);
   });
 
-  it('REST + MCP available → level full', async () => {
+  it('REST + MCP available → level mcp', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ data: [] }), { status: 200 }),
     );
@@ -143,8 +143,8 @@ describe('detectCapabilities', () => {
 
     const result = await detectCapabilities({ callTool });
 
-    expect(result.level).toBe('full');
-    expect(result.restAvailable).toBe(true);
+    expect(result.level).toBe('mcp');
+    expect(result.restReadable).toBe(true);
     expect(result.mcpAvailable).toBe(true);
     expect(result.mcpTools).toEqual([
       'test_workflow',
@@ -153,22 +153,22 @@ describe('detectCapabilities', () => {
     ]);
   });
 
-  it('fetch throws → degrades to static-only (restAvailable false)', async () => {
+  it('fetch throws → degrades to static-only (restReadable false)', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('ECONNREFUSED'));
 
     const result = await detectCapabilities();
     expect(result.level).toBe('static-only');
-    expect(result.restAvailable).toBe(false);
+    expect(result.restReadable).toBe(false);
   });
 
-  it('fetch returns 401 → degrades to static-only (restAvailable false)', async () => {
+  it('fetch returns 401 → degrades to static-only (restReadable false)', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response('Unauthorized', { status: 401 }),
     );
 
     const result = await detectCapabilities();
     expect(result.level).toBe('static-only');
-    expect(result.restAvailable).toBe(false);
+    expect(result.restReadable).toBe(false);
   });
 
   it('workflow not found → throws ExecutionPreconditionError workflow-not-found', async () => {
@@ -211,7 +211,7 @@ describe('detectCapabilities', () => {
 
     const result = await detectCapabilities();
     expect(result.level).toBe('static-only');
-    expect(result.restAvailable).toBe(false);
+    expect(result.restReadable).toBe(false);
   });
 
   it('network error during workflow check → throws ExecutionInfrastructureError unreachable', async () => {

@@ -27,8 +27,6 @@ const ValidateInputSchema = z.discriminatedUnion('kind', [
     layer: z.enum(['static', 'execution', 'both']).optional(),
     force: z.boolean().optional(),
     pinData: z.record(z.array(z.object({ json: z.record(z.unknown()) }).passthrough())).optional(),
-    destinationNode: z.string().min(1).optional(),
-    destinationMode: z.enum(['inclusive', 'exclusive']).optional(),
   }),
   z.object({
     kind: z.literal('nodes'),
@@ -37,8 +35,6 @@ const ValidateInputSchema = z.discriminatedUnion('kind', [
     layer: z.enum(['static', 'execution', 'both']).optional(),
     force: z.boolean().optional(),
     pinData: z.record(z.array(z.object({ json: z.record(z.unknown()) }).passthrough())).optional(),
-    destinationNode: z.string().min(1).optional(),
-    destinationMode: z.enum(['inclusive', 'exclusive']).optional(),
   }),
   z.object({
     kind: z.literal('workflow'),
@@ -46,8 +42,6 @@ const ValidateInputSchema = z.discriminatedUnion('kind', [
     layer: z.enum(['static', 'execution', 'both']).optional(),
     force: z.boolean().optional(),
     pinData: z.record(z.array(z.object({ json: z.record(z.unknown()) }).passthrough())).optional(),
-    destinationNode: z.string().min(1).optional(),
-    destinationMode: z.enum(['inclusive', 'exclusive']).optional(),
   }),
 ]);
 
@@ -128,8 +122,6 @@ export function createServer(deps: OrchestratorDeps): McpServer {
           layer: resolveLayer(args.layer),
           force: args.force ?? false,
           pinData: args.pinData ?? null,
-          destinationNode: args.destinationNode ?? null,
-          destinationMode: args.destinationMode ?? 'inclusive',
         };
         const summary = await interpret(request, deps);
         return wrapSuccess(summary);

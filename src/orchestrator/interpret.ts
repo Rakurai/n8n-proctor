@@ -10,10 +10,9 @@ import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import stringify from 'json-stable-stringify';
 import type { ExecutionData } from '../diagnostics/types.js';
+import { getExecution } from '../execution/mcp-client.js';
 import { readCachedPinData, writeCachedPinData } from '../execution/pin-data.js';
-import { resolveCredentials } from '../execution/rest-client.js';
-import { type RawResultData, extractExecutionData } from '../execution/results.js';
-import type { ExecutionStatus, PinData, PinDataItem } from '../execution/types.js';
+import type { PinData, PinDataItem } from '../execution/types.js';
 import type { EvaluationInput } from '../guardrails/types.js';
 import type { StaticFinding } from '../static-analysis/types.js';
 import { computeContentHash, computeWorkflowHash } from '../trust/hash.js';
@@ -141,7 +140,7 @@ export async function interpret(
   let usedPinData: PinData | null = null;
   const capabilities: AvailableCapabilities = {
     staticAnalysis: true,
-    restApi: false,
+    restReadable: false,
     mcpTools: false,
   };
   let executionId: string | null = null;
@@ -165,16 +164,16 @@ export async function interpret(
     }
   }
 
-  // Step 6b: Execution
+  // Step 6b: Execution (MCP is the sole execution backend)
   if (effectiveLayer === 'execution' || effectiveLayer === 'both') {
     try {
       const detected = await deps.detectCapabilities(
         request.callTool ? { callTool: request.callTool } : undefined,
       );
-      capabilities.restApi = detected.restAvailable;
+      capabilities.restReadable = detected.restReadable;
       capabilities.mcpTools = detected.mcpAvailable;
 
-      if (detected.restAvailable || detected.mcpAvailable) {
+      if (detected.mcpAvailable && request.callTool) {
         const trustedBoundaries = resolvedTarget.nodes.filter((n) => activeTrust.nodes.has(n));
         // Load cached pin data as prior artifacts (tier 2)
         const priorArtifacts: Record<string, PinDataItem[]> = {};
@@ -195,53 +194,24 @@ export async function interpret(
         );
         usedPinData = pinDataResult.pinData;
 
-        let execResult: import('../execution/types.js').ExecutionResult | undefined;
-        if (request.destinationNode !== null && detected.restAvailable) {
-          const creds = await resolveCredentials();
-          execResult = await deps.executeBounded(
-            workflowId,
-            request.destinationNode,
-            pinDataResult.pinData,
-            creds,
-            request.destinationMode,
-          );
-        } else if (
-          request.target.kind === 'workflow' &&
-          detected.mcpAvailable &&
-          request.callTool
-        ) {
-          execResult = await deps.executeSmoke(workflowId, pinDataResult.pinData, request.callTool);
-        } else if (request.target.kind === 'workflow' && detected.restAvailable) {
-          const destination = findFurthestDownstream(slice);
-          if (destination) {
-            const creds = await resolveCredentials();
-            execResult = await deps.executeBounded(
-              workflowId,
-              destination as string,
-              pinDataResult.pinData,
-              creds,
-              'inclusive',
-            );
-          }
-        }
+        const execResult = await deps.executeSmoke(
+          workflowId,
+          pinDataResult.pinData,
+          request.callTool,
+        );
 
-        if (execResult) {
-          executionId = execResult.executionId;
-          if (detected.restAvailable && execResult.executionId) {
-            const creds = await resolveCredentials();
-            const rawResponse = await deps.getExecutionData(execResult.executionId, creds);
-            if (rawResponse != null) {
-              const response = rawResponse as {
-                status?: string;
-                data?: { resultData?: RawResultData };
-              };
-              if (response.data?.resultData) {
-                executionData = extractExecutionData(
-                  response.data.resultData,
-                  (response.status ?? 'unknown') as ExecutionStatus,
-                );
-              }
-            }
+        executionId = execResult.executionId;
+
+        // Retrieve execution data via MCP
+        if (execResult.executionId) {
+          const mcpResult = await getExecution(
+            workflowId,
+            execResult.executionId,
+            request.callTool,
+            { includeData: true },
+          );
+          if (mcpResult.data) {
+            executionData = mcpResult.data;
           }
         }
       }
@@ -268,7 +238,6 @@ export async function interpret(
   const meta: ValidationMeta = {
     runId,
     executionId,
-    partialExecution: request.destinationNode !== null,
     timestamp: new Date().toISOString(),
     durationMs: Date.now() - startTime,
   };
@@ -342,16 +311,6 @@ function hashPinData(pinData: PinData): string {
   return createHash('sha256').update(serialized).digest('hex');
 }
 
-/** Find the furthest downstream node in a slice for bounded execution. */
-function findFurthestDownstream(
-  slice: import('../types/slice.js').SliceDefinition,
-): NodeIdentity | null {
-  if (slice.exitPoints.length > 0) {
-    return slice.exitPoints[0] ?? null;
-  }
-  return null;
-}
-
 /** Collect nodes that were actually covered by selected paths. */
 function collectValidatedNodes(
   paths: import('../types/slice.js').PathDefinition[],
@@ -387,11 +346,10 @@ function errorDiagnostic(message: string, runId: string, startTime: number): Dia
     nodeAnnotations: [],
     guardrailActions: [],
     hints: [],
-    capabilities: { staticAnalysis: true, restApi: false, mcpTools: false },
+    capabilities: { staticAnalysis: true, restReadable: false, mcpTools: false },
     meta: {
       runId,
       executionId: null,
-      partialExecution: false,
       timestamp: new Date().toISOString(),
       durationMs: Date.now() - startTime,
     },
@@ -414,11 +372,10 @@ function skippedDiagnostic(
     nodeAnnotations: [],
     guardrailActions: guardrailDecisions,
     hints: [],
-    capabilities: { staticAnalysis: true, restApi: false, mcpTools: false },
+    capabilities: { staticAnalysis: true, restReadable: false, mcpTools: false },
     meta: {
       runId,
       executionId: null,
-      partialExecution: false,
       timestamp: new Date().toISOString(),
       durationMs: Date.now() - startTime,
     },

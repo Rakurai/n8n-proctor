@@ -148,7 +148,7 @@ export async function buildGuardrailExplanation(
     },
     capabilities: {
       staticAnalysis: true,
-      restApi: capabilities.restAvailable,
+      restReadable: capabilities.restReadable,
       mcpTools: capabilities.mcpAvailable,
     },
   };
