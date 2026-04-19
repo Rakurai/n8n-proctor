@@ -10,7 +10,8 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 export interface McpTestClient {
   validate(input: {
     workflowPath: string;
-    target?: { kind: string; nodes?: string[] };
+    kind?: string;
+    nodes?: string[];
     layer?: string;
     force?: boolean;
     pinData?: Record<string, Array<{ json: Record<string, unknown> }>>;
@@ -22,7 +23,8 @@ export interface McpTestClient {
 
   explain(input: {
     workflowPath: string;
-    target?: { kind: string; nodes?: string[] };
+    kind?: string;
+    nodes?: string[];
     layer?: string;
   }): Promise<McpToolResponse>;
 
@@ -53,13 +55,25 @@ export async function createMcpTestClient(): Promise<McpTestClient> {
   async function callTool(name: string, args: Record<string, unknown>): Promise<McpToolResponse> {
     const result = await client.callTool({ name, arguments: args });
 
-    // MCP SDK returns { content: [{ type: 'text', text: '...' }] }
+    // MCP SDK returns { content: [{ type: 'text', text: '...' }], isError?: boolean }
     const content = result.content as Array<{ type: string; text: string }>;
     if (!content || content.length === 0) {
       throw new Error(`MCP tool '${name}' returned no content`);
     }
 
-    return JSON.parse(content[0].text) as McpToolResponse;
+    const text = content[0].text;
+
+    // Handle MCP SDK error responses (plain text, not JSON)
+    if (result.isError) {
+      return { success: false, error: { type: 'mcp_error', message: text } };
+    }
+
+    try {
+      return JSON.parse(text) as McpToolResponse;
+    } catch {
+      // Server returned non-JSON text — wrap as error
+      return { success: false, error: { type: 'parse_error', message: text } };
+    }
   }
 
   return {
