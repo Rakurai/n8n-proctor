@@ -60,7 +60,7 @@ function serializeGraph(workflowId: string, graph: WorkflowGraph): WorkflowSnaps
   const nodes: SerializedGraphNode[] = [];
   for (const node of graph.nodes.values()) {
     const nodeAst = graph.ast.nodes.find((n) => n.propertyName === node.name);
-    nodes.push({
+    const serialized: SerializedGraphNode = {
       name: node.name,
       displayName: node.displayName,
       type: node.type,
@@ -72,7 +72,8 @@ function serializeGraph(workflowId: string, graph: WorkflowGraph): WorkflowSnaps
       retryOnFail: nodeAst?.retryOnFail ?? false,
       executeOnce: nodeAst?.executeOnce ?? false,
       onError: nodeAst?.onError ?? null,
-    });
+    };
+    nodes.push(serialized);
   }
 
   const forward: Record<string, SerializedEdge[]> = {};

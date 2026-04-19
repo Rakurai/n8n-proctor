@@ -195,14 +195,14 @@ describe('invalidateTrust', () => {
     expect(result.nodes.has(ni('setFields'))).toBe(false);
   });
 
-  it('position-only change preserves trust', async () => {
+  it('metadata-only change preserves trust', async () => {
     const graph = await loadLinearSimple();
     const state = await trustAllNodes(graph);
 
     const changeSet: NodeChangeSet = {
       added: [],
       removed: [],
-      modified: [{ node: ni('httpRequest'), changes: ['position-only'] }],
+      modified: [{ node: ni('httpRequest'), changes: ['metadata-only'] }],
       unchanged: [ni('scheduleTrigger'), ni('setFields')],
     };
 

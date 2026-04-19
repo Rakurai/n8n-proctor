@@ -11,7 +11,7 @@ import type { NodeIdentity } from '../types/identity.js';
 import type { ChangeKind } from '../types/trust.js';
 import type { EvaluationInput } from './types.js';
 
-const TRUST_PRESERVING: ReadonlySet<ChangeKind> = new Set(['position-only', 'metadata-only']);
+const TRUST_PRESERVING: ReadonlySet<ChangeKind> = new Set(['metadata-only']);
 
 /**
  * Assemble evidence for a guardrail decision from the evaluation input.

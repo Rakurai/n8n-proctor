@@ -53,22 +53,13 @@ export function computeChangeSet(previous: WorkflowGraph, current: WorkflowGraph
     const currHash = computeContentHash(currNode, current.ast);
 
     if (prevHash === currHash) {
-      // Content is the same — check for connection and position changes
-      const changes: ChangeKind[] = [];
-
+      // Content is the same — check for connection changes only
+      // Position changes are cosmetic and intentionally ignored (matches n8nac behavior)
       if (
         prevConnectionsHash !== currConnectionsHash &&
         nodeEdgesChanged(previous, current, name)
       ) {
-        changes.push('connection');
-      }
-
-      if (nodePositionChanged(previous, current, name)) {
-        changes.push('position-only');
-      }
-
-      if (changes.length > 0) {
-        modified.push({ node: name, changes });
+        modified.push({ node: name, changes: ['connection'] });
       } else {
         unchanged.push(name);
       }
@@ -83,22 +74,6 @@ export function computeChangeSet(previous: WorkflowGraph, current: WorkflowGraph
   applyRenameDetection(removed, added, previous, current, modified);
 
   return { added, removed, modified, unchanged };
-}
-
-/** Check if a specific node's position changed between AST snapshots. */
-function nodePositionChanged(
-  previous: WorkflowGraph,
-  current: WorkflowGraph,
-  nodeName: NodeIdentity,
-): boolean {
-  const prevAst = previous.ast.nodes.find((n) => n.propertyName === nodeName);
-  const currAst = current.ast.nodes.find((n) => n.propertyName === nodeName);
-
-  if (!prevAst || !currAst) return false;
-
-  const prevPos = prevAst.position ?? [0, 0];
-  const currPos = currAst.position ?? [0, 0];
-  return prevPos[0] !== currPos[0] || prevPos[1] !== currPos[1];
 }
 
 /** Check if a specific node's edges changed between snapshots. */

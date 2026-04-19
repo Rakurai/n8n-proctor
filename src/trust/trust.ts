@@ -13,7 +13,7 @@ import { TrustRecordingError } from './errors.js';
 import { computeContentHash } from './hash.js';
 import type { RerunAssessment } from './types.js';
 
-const TRUST_PRESERVING: ReadonlySet<ChangeKind> = new Set(['position-only', 'metadata-only']);
+const TRUST_PRESERVING: ReadonlySet<ChangeKind> = new Set(['metadata-only']);
 
 // ── Derivation (US2) ────────────────────────────────────────────────
 

@@ -112,7 +112,10 @@ function resolveChanged(
 
   if (changeSet !== null) {
     // Precise detection from snapshot diff
-    seedNames = [...changeSet.added, ...changeSet.modified.map((m) => m.node)];
+    seedNames = [
+      ...changeSet.added,
+      ...changeSet.modified.map((m) => m.node),
+    ];
   } else {
     // Approximate detection from trust state content hashes
     seedNames = approximateChanges(graph, trustState);

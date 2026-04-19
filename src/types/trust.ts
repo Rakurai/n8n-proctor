@@ -49,8 +49,9 @@ export interface NodeModification {
 /**
  * The kind of change detected on a node.
  *
- * `position-only` and `metadata-only` are trust-preserving — they do not
- * invalidate a prior `NodeTrustRecord`. All other kinds are trust-breaking.
+ * `metadata-only` is trust-preserving — it does not invalidate a prior
+ * `NodeTrustRecord`. All other kinds are trust-breaking.
+ * Position changes are not tracked (cosmetic; matches n8nac behavior).
  */
 export type ChangeKind =
   | 'parameter'
@@ -60,5 +61,4 @@ export type ChangeKind =
   | 'credential'
   | 'execution-setting'
   | 'rename'
-  | 'position-only'
   | 'metadata-only';

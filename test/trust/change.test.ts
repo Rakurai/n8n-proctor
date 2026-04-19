@@ -185,7 +185,7 @@ describe('computeChangeSet', () => {
     expect(changeSet.modified[0].changes).toContain('execution-setting');
   });
 
-  it('detects position-only change', async () => {
+  it('ignores position-only change (cosmetic, not tracked)', async () => {
     const previous = await loadLinearSimple();
     // Only change AST position — content hash stays the same since position is excluded
     const ast: WorkflowAST = {
@@ -200,8 +200,9 @@ describe('computeChangeSet', () => {
 
     const changeSet = computeChangeSet(previous, current);
 
-    // Position-only changes don't affect content hash, so it should be unchanged
+    // Position changes are cosmetic — node should be unchanged
     expect(changeSet.unchanged).toHaveLength(3);
+    expect(changeSet.modified).toHaveLength(0);
   });
 
   it('detects connection change on content-unchanged node', async () => {

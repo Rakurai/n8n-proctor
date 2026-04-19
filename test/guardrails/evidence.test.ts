@@ -78,14 +78,14 @@ describe('assembleEvidence', () => {
     expect(evidence.changedNodes).toEqual([a]);
   });
 
-  it('does not count position-only changes as changed', () => {
+  it('does not count metadata-only changes as changed', () => {
     const a = nodeIdentity('a');
     const evidence = assembleEvidence(makeInput({
       targetNodes: new Set([a]),
       changeSet: {
         added: [],
         removed: [],
-        modified: [{ node: a, changes: ['position-only'] }],
+        modified: [{ node: a, changes: ['metadata-only'] }],
         unchanged: [],
       },
     }));
