@@ -1,6 +1,8 @@
 ---
 name: validate-workflow
-description: Use when editing n8n-as-code workflow files, debugging n8n execution failures, checking data flow between nodes, or deciding whether a workflow change needs runtime validation. Requires the n8n-vet MCP server.
+description: Use to validate n8n-as-code workflow files, debug n8n execution failures, check data flow between nodes, or decide whether a workflow change needs runtime validation. Requires the n8n-vet MCP server.
+license: MIT
+compatibility: ">=0.1.0"
 ---
 
 # n8n Workflow Validation

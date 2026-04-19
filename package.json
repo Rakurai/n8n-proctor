@@ -8,6 +8,17 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "bin",
+    ".claude-plugin",
+    "skills",
+    "hooks"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rakurai/n8n-vet.git"
+  },
   "bin": {
     "n8n-vet": "./dist/cli/index.js"
   },
@@ -19,7 +30,8 @@
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
     "format": "biome format --write src/",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "ci": "npm run typecheck && npm run lint && npm test"
   },
   "keywords": [
     "n8n",

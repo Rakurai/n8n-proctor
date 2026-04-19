@@ -14,20 +14,40 @@ Stop re-running the whole workflow. Vet what changed.
 
 ## Setup
 
+### Claude Code plugin (recommended)
+
 ```sh
-npm install n8n-vet
+claude plugin add github.com/Rakurai/n8n-vet
 ```
 
-n8n-vet needs two MCP servers available at runtime — **n8n-mcp** (n8n's built-in
-MCP server for workflow execution) and **n8nac** (for workflow authoring):
+Then configure the two MCP servers n8n-vet needs at runtime — **n8n-mcp** (n8n's
+built-in MCP server for workflow execution) and **n8nac** (for workflow authoring):
 
 ```sh
-# Claude Code
 claude mcp add n8n-mcp --transport http --url http://localhost:5678/mcp-server/http
 claude mcp add n8nac -- npx --yes n8nac mcp
 ```
 
-For VS Code, add the servers to your `mcp.servers` in settings.json.
+### From source
+
+```sh
+git clone https://github.com/Rakurai/n8n-vet.git && cd n8n-vet
+npm install && npm run build
+```
+
+### VS Code / Copilot
+
+Add to your `.vscode/settings.json`:
+
+```jsonc
+{
+  "mcp.servers": {
+    "n8n-vet": { "command": "node", "args": ["./dist/mcp/serve.js"] },
+    "n8n-mcp": { "url": "http://localhost:5678/mcp-server/http" },
+    "n8nac": { "command": "npx", "args": ["--yes", "n8nac", "mcp"] }
+  }
+}
+```
 
 ## Quick start
 
