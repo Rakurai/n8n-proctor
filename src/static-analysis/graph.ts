@@ -3,10 +3,9 @@
  * into a traversable WorkflowGraph with bidirectional adjacency maps, node
  * classifications, and a displayName→propertyName index for expression resolution.
  *
- * Also provides parseWorkflowFile() to auto-detect and parse .ts/.json files.
+ * Also provides parseWorkflowFile() to parse .ts workflow files.
  */
 
-import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import type { ConnectionAST, NodeAST, WorkflowAST } from '@n8n-as-code/transformer';
 import type { Edge, GraphNode, WorkflowGraph } from '../types/graph.js';
@@ -88,13 +87,13 @@ export function buildGraph(ast: WorkflowAST): WorkflowGraph {
 }
 
 /**
- * Parse a workflow file into a WorkflowAST. Auto-detects format by extension.
+ * Parse a workflow file into a WorkflowAST.
  *
  * - `.ts` files are parsed via `TypeScriptParser.parseFile()` (async)
- * - `.json` files are read, parsed as JSON, and converted via `JsonToAstParser.parse()`
+ * - `.json` files are rejected with `MalformedWorkflowError` (use n8nac)
  *
  * @throws {ConfigurationError} if `@n8n-as-code/transformer` is not available.
- * @throws {MalformedWorkflowError} if the file cannot be parsed.
+ * @throws {MalformedWorkflowError} if the file cannot be parsed or is not .ts.
  */
 export async function parseWorkflowFile(filePath: string): Promise<WorkflowAST> {
   const ext = extname(filePath).toLowerCase();
@@ -104,10 +103,12 @@ export async function parseWorkflowFile(filePath: string): Promise<WorkflowAST> 
   }
 
   if (ext === '.json') {
-    return await parseJsonFile(filePath);
+    throw new MalformedWorkflowError(
+      'JSON workflow files are not supported. Use n8nac to author workflows in TypeScript.',
+    );
   }
 
-  throw new MalformedWorkflowError(`Unsupported file extension '${ext}'. Expected .ts or .json`);
+  throw new MalformedWorkflowError(`Unsupported file extension '${ext}'. Expected .ts`);
 }
 
 async function parseTypeScriptFile(filePath: string): Promise<WorkflowAST> {
@@ -115,21 +116,6 @@ async function parseTypeScriptFile(filePath: string): Promise<WorkflowAST> {
     const { TypeScriptParser } = await import('@n8n-as-code/transformer');
     const parser = new TypeScriptParser();
     return await parser.parseFile(filePath);
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('Cannot find module')) {
-      throw new ConfigurationError('@n8n-as-code/transformer');
-    }
-    throw err;
-  }
-}
-
-async function parseJsonFile(filePath: string): Promise<WorkflowAST> {
-  try {
-    const { JsonToAstParser } = await import('@n8n-as-code/transformer');
-    const raw = await readFile(filePath, 'utf-8');
-    const json: unknown = JSON.parse(raw);
-    const parser = new JsonToAstParser();
-    return parser.parse(json as import('@n8n-as-code/transformer').N8nWorkflow);
   } catch (err) {
     if (err instanceof Error && err.message.includes('Cannot find module')) {
       throw new ConfigurationError('@n8n-as-code/transformer');

@@ -16,7 +16,7 @@ Decisions made during planning. Reference these when questions come up during ex
 | Version | 0.1.0 | Pre-release / early access. Signals "usable but not stable API." |
 | Audit scope | All S0 + S1 before release | S2/S3 tracked but not blocking. |
 | MCP execution | Wire it up for v0.1.0 | Dead code branch is worse than missing feature. |
-| n8nac dependency | npm registry | Both `@n8n-as-code/transformer` and `@n8n-as-code/skills` are published to npm (latest n8nac release: v1.7.0). Use normal semver deps. |
+| n8nac dependency | npm registry | `@n8n-as-code/transformer` is published to npm (latest n8nac release: v1.7.0). Use normal semver deps. n8nac is a sibling tool, not a dependency. |
 | CI | GitHub Actions (lightweight) | Auto-runs typecheck + test + lint on push/PR. |
 | Docs | Clean public-facing set | README, CHANGELOG, CONCEPTS. Archive/move internal docs. |
 
@@ -26,7 +26,7 @@ Decisions made during planning. Reference these when questions come up during ex
 
 ~~All resolved.~~ See Decision Log above.
 
-1. ~~**n8nac version pinning.**~~ **Resolved:** Both packages are on npm. Use `@n8n-as-code/transformer` and `@n8n-as-code/skills` from the registry (pin to latest compatible version).
+1. ~~**n8nac version pinning.**~~ **Resolved:** `@n8n-as-code/transformer` is on npm. Pin to latest compatible version. n8nac itself is a sibling tool coordinated by the agent.
 
 2. ~~**n8n instance for integration testing.**~~ **Resolved:** localhost:5678 available. API key stored in `.env` (gitignored). `.env.example` committed as template.
 

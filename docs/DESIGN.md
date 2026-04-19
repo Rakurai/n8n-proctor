@@ -55,33 +55,31 @@ The architecture must serve these goals, derived from the vision, PRD, and engin
                   ┌────────────▼─────────────┐
                   │       Coding agent        │
                   │  (edits workflows,        │
-                  │   calls n8n-vet,        │
+                  │   calls n8n-vet + n8nac,  │
                   │   consumes diagnostics)   │
-                  └────────────┬─────────────┘
-                               │ MCP tool calls
-                  ┌────────────▼─────────────┐
-                  │        n8n-vet          │
-                  └──┬──────┬──────┬─────────┘
-                     │      │      │
-          ┌──────────▼┐  ┌─▼────┐ │
-          │  Local     │  │n8nac │ │
-          │  workflow  │  │(dep) │ │
-          │  artifacts │  └──────┘ │
-          └───────────┘     ┌──────▼──────────┐
-                            │  n8n instance    │
-                            │  (MCP)           │
-                            └─────────────────┘
+                  └──┬─────────────────┬──────┘
+                     │ MCP tool calls  │ MCP tool calls
+          ┌──────────▼──┐     ┌────────▼────────┐
+          │   n8n-vet   │     │     n8nac       │
+          │ (validation)│     │ (authoring/     │
+          │             │     │  deploy)        │
+          └──┬──────────┘     └────────┬────────┘
+             │                         │
+    ┌────────▼─────────┐    ┌──────────▼────────┐
+    │  Local workflow   │    │   n8n instance    │
+    │  artifacts        │    │   (MCP)           │
+    └──────────────────┘    └───────────────────┘
 ```
 
 **Local workflow artifacts** are the source of truth. Workflows are authored as n8n-as-code TypeScript files and versioned locally. n8n is a deployment/runtime surface, not the authoring environment.
 
-**n8nac** is a direct dependency. n8n-vet consumes the transformer package (workflow parsing), the skills package (schema validation, node type information), and configuration discovery from the CLI package.
+**n8n-vet and n8nac are sibling tools**, not dependency/wrapper. The agent coordinates both independently: n8nac for workflow authoring and deployment, n8n-vet for validation. n8n-vet uses `@n8n-as-code/transformer` as a library dependency for `.ts` workflow parsing, but does not wrap, proxy, or orchestrate n8nac itself.
 
 **n8n instance** is the execution backend. It is required only for execution-backed validation. Static analysis operates entirely offline.
 
 **n8n MCP tools** are used for whole-workflow execution (`test_workflow`), execution result inspection (`get_execution`), and pin data schema discovery (`prepare_test_pin_data`). MCP is the sole execution backend.
 
-**The agent** is the sole direct consumer. It calls n8n-vet's MCP tool surface, receives structured diagnostic summaries, and decides what to fix next.
+**The agent** is the sole direct consumer. It calls both n8n-vet and n8nac as independent MCP tool surfaces, receives structured diagnostic summaries from n8n-vet, and decides what to fix or deploy next.
 
 **The supervising human** reads diagnostic summaries when needed but does not operate the tool directly.
 
@@ -136,7 +134,7 @@ Performs local, offline analysis of workflow structure and data flow. Responsibi
 - Classify nodes by behavior (shape-preserving, shape-replacing, shape-opaque)
 - Detect data-loss-through-replacement patterns
 - Check output shape compatibility across connections when schema information is available
-- Validate node parameters and structure using n8nac's existing schema validation
+- Validate node parameters and structure
 
 Does not require a running n8n instance. Produces structured findings that feed into the diagnostic summary.
 
@@ -299,22 +297,20 @@ The system should recommend static-only validation when the change is purely str
 
 ### Local artifacts (always available)
 
-- n8n-as-code TypeScript workflow files: parsed via the n8nac transformer package into a graph representation
-- n8n JSON workflow files: parsed via the n8nac transformer's JSON parser
-- Node type schemas: accessed via the n8nac skills package's schema provider
+- n8n-as-code TypeScript workflow files: parsed via the `@n8n-as-code/transformer` package into a graph representation
 - Trust state: maintained locally by n8n-vet
 
 No n8n instance or network access required. This is the foundation for all static analysis.
 
-### n8nac (dependency, always available)
+### Relationship to n8nac
 
-The preferred integration model is direct package/library consumption where stable dependency surfaces exist. Feasibility research verified that the transformer and skills packages are published to npm with clean APIs, minimal dependencies, and no workspace coupling. The MCP package uses child-process spawning and is not suitable for direct import.
+n8n-vet and n8nac are **independent sibling tools** that the agent coordinates. They are not in a dependency/wrapper relationship.
 
-- **Transformer package**: workflow parsing (TS and JSON to AST), format conversion (AST to n8n JSON for API submission)
-- **Skills package**: node schema validation, node type information, schema discovery
-- **CLI ConfigService**: n8n instance discovery, API key resolution, project context
+- **n8nac** is responsible for workflow authoring, sync, and deployment. The agent calls n8nac to create, edit, and push workflows.
+- **n8n-vet** is responsible for validation. The agent calls n8n-vet to validate workflow slices and paths.
+- The agent decides when to call each tool and in what order. n8n-vet does not invoke n8nac operations.
 
-The product should avoid unnecessary CLI subprocess wrapping, but later specification may allow selective use of command surfaces if they prove to be the most stable option for a specific capability.
+n8n-vet uses `@n8n-as-code/transformer` as a **library dependency** for parsing `.ts` workflow files into AST form. This is a package-level dependency on the transformer, not a runtime integration with the n8nac tool itself.
 
 ### MCP tools (execution backend)
 
@@ -332,7 +328,7 @@ The system operates in progressively reduced modes depending on what is availabl
 
 | Available | Capabilities |
 |-----------|-------------|
-| Local files + n8nac packages | Full static analysis |
+| Local files + `@n8n-as-code/transformer` | Full static analysis |
 | + n8n MCP tools | + workflow execution, pin data discovery, execution inspection |
 
 The diagnostic summary always reports which capabilities were available and which evidence layers were used, so the agent understands the basis for the result.

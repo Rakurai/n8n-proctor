@@ -18,11 +18,11 @@ This document should be read together with:
 
 ## 1. Product shape
 
-The product will be built as a **standalone package** with **n8n-as-code (`n8nac`) as a dependency**.
+The product will be built as a **standalone package** that is a **sibling tool to n8n-as-code (`n8nac`)**.
 
 ### Why
 
-This preserves the project’s distinct identity as a validation control tool rather than turning it into “more n8nac commands,” while still allowing it to reuse the most valuable capabilities already present in the n8nac ecosystem.
+This preserves the project’s distinct identity as a validation control tool. n8n-vet and n8nac are independent tools that the agent coordinates — n8nac for workflow authoring and deployment, n8n-vet for validation. n8n-vet uses `@n8n-as-code/transformer` as a library dependency for `.ts` workflow parsing, but does not wrap, proxy, or orchestrate n8nac itself.
 
 This project is philosophically aligned with n8nac:
 
@@ -37,7 +37,7 @@ But it remains a separate product because its purpose is different:
 
 ### Locked decision
 
-**Decision:** standalone package, not an n8nac-native built-in package.
+**Decision:** standalone package, sibling tool to n8nac.
 
 ---
 
@@ -51,7 +51,7 @@ TypeScript is the strongest fit because:
 
 * n8n is implemented in TypeScript
 * n8nac is implemented in TypeScript
-* the project will likely consume n8nac packages and n8n workflow-related structures
+* the project consumes the `@n8n-as-code/transformer` package for workflow parsing
 * the product is expected to expose an MCP-oriented surface, which fits naturally in the Node/TypeScript ecosystem
 * shared types, schemas, and graph semantics matter more here than rapid one-off prototyping convenience
 
@@ -96,7 +96,7 @@ MCP is the preferred **surface exposed by the product**.
 
 Internally, the product may call:
 
-* n8nac libraries
+* `@n8n-as-code/transformer` library for workflow parsing
 * n8n MCP tools
 * direct package APIs
 
@@ -202,9 +202,9 @@ Use n8nac-compatible/local workflow representations as the primary graph source.
 
 This may involve:
 
-* consuming n8nac parsing/transform capabilities
+* consuming the `@n8n-as-code/transformer` package for parsing
 * reading local workflow JSON
-* reading local TypeScript workflow definitions through n8nac-aligned tooling
+* reading local TypeScript workflow definitions through the transformer
 
 ### Why
 
@@ -264,7 +264,6 @@ The product should not hard-code itself to a single execution backend too early.
 Research across n8n and n8nac surfaces shows that useful execution-related capabilities are available through:
 
 * MCP tools
-* existing n8nac functionality
 
 A single backend is unlikely to expose the entire validation surface the product wants.
 
@@ -387,7 +386,7 @@ The library core + thin interface architecture already separates product logic f
 ### Locked
 
 * Standalone package
-* n8nac as dependency
+* Sibling tool to n8nac (not dependency/wrapper)
 * TypeScript / Node.js
 * Agent-only product stance
 * MCP as preferred external surface
@@ -397,7 +396,7 @@ The library core + thin interface architecture already separates product logic f
 * Static analysis is heuristic and high-value, not exhaustive
 * Local-first graph analysis
 * MCP tools for execution, inspection, and pin data discovery
-* n8nac transformer for workflow parsing, custom graph walker for analysis
+* `@n8n-as-code/transformer` for `.ts` workflow parsing, custom graph walker for analysis
 * Internal use of MCP is optional, not assumed
 * Trusted interfaces are primarily derived
 * Structured JSON diagnostic summaries are the primary output
@@ -447,6 +446,6 @@ The technology stack is now intentionally aligned with the product vision:
 * execution-backed where valuable
 * structured for agents
 * independent enough to remain opinionated
-* close enough to n8nac and n8n to reuse the platform capabilities that already exist
+* uses `@n8n-as-code/transformer` for workflow parsing while remaining an independent sibling to n8nac
 
 This stack should let the project pursue its core promise without drifting into either a generic test framework or a partial replacement for n8nac.

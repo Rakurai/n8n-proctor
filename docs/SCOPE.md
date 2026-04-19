@@ -119,6 +119,10 @@ It is not the universal place where all LLM or agent quality evaluation happens.
 
 It is not meant to guarantee that unrelated workflows or remote parts of the graph still behave correctly after every local change.
 
+### Wrapping, proxying, or orchestrating n8nac
+
+n8n-vet does not wrap, proxy, or orchestrate n8nac. The agent coordinates both tools independently. n8n-vet validates workflows; n8nac authors and deploys them. They are sibling tools, not in a dependency or wrapper relationship.
+
 These exclusions are essential to keeping the project coherent.
 
 ---

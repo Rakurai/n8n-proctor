@@ -179,7 +179,12 @@ export interface WorkflowSnapshot {
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-/** Derive a stable, portable workflow ID from a file path (project-relative). */
+/**
+ * Derive a stable, portable workflow ID from a file path (project-relative).
+ *
+ * Returns project-relative file path for local persistence (trust state, snapshots, pin data).
+ * NOT for n8n API calls — use WorkflowAST.metadata.id for MCP execution.
+ */
 export function deriveWorkflowId(workflowPath: string): string {
   return relative(process.cwd(), resolve(workflowPath));
 }

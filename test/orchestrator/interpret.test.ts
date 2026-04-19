@@ -27,7 +27,7 @@ function makeEdge(from: string, to: string): Edge {
   return { from, fromOutput: 0, isError: false, to, toInput: 0 };
 }
 
-function makeGraph(nodeNames: string[], edges: [string, string][]): WorkflowGraph {
+function makeGraph(nodeNames: string[], edges: [string, string][], metadataId = 'n8n-uuid-123'): WorkflowGraph {
   const nodes = new Map<string, GraphNode>();
   const displayNameIndex = new Map<string, string>();
   const forward = new Map<string, Edge[]>();
@@ -62,7 +62,7 @@ function makeGraph(nodeNames: string[], edges: [string, string][]): WorkflowGrap
     forward,
     backward,
     displayNameIndex,
-    ast: { nodes: nodeAsts, connections: [] } as unknown as WorkflowAST,
+    ast: { nodes: nodeAsts, connections: [], metadata: { id: metadataId, name: 'Test', active: false } } as unknown as WorkflowAST,
   };
 }
 
@@ -872,5 +872,165 @@ describe('interpret() — MCP smoke test path', () => {
       expect.any(Object),
       callTool,
     );
+  });
+});
+
+describe('interpret() — n8nWorkflowId routing (US1)', () => {
+  it('execution calls receive ast.metadata.id (UUID), not file-path workflowId', async () => {
+    const callTool = vi.fn();
+    const deps = createMockDeps({
+      detectCapabilities: vi.fn().mockResolvedValue({
+        level: 'mcp',
+        mcpAvailable: true,
+        mcpTools: ['test_workflow'],
+      }),
+    });
+
+    const request: ValidationRequest = {
+      workflowPath: '/test/workflow.ts',
+      target: { kind: 'changed' },
+      layer: 'execution',
+      force: false,
+      pinData: null,
+      callTool,
+    };
+
+    await interpret(request, deps);
+
+    // executeSmoke should receive the n8n UUID, not the file path
+    expect(deps.executeSmoke).toHaveBeenCalledWith(
+      'n8n-uuid-123',
+      expect.any(Object),
+      callTool,
+    );
+  });
+
+  it('missing metadata.id with execution layer returns error diagnostic with message containing "missing metadata.id"', async () => {
+    const callTool = vi.fn();
+    const graphWithEmptyId = makeGraph(
+      ['trigger', 'httpReq', 'setNode', 'end'],
+      [['trigger', 'httpReq'], ['httpReq', 'setNode'], ['setNode', 'end']],
+      '',
+    );
+    const deps = createMockDeps({
+      buildGraph: vi.fn().mockReturnValue(graphWithEmptyId),
+    });
+
+    const request: ValidationRequest = {
+      workflowPath: '/test/workflow.ts',
+      target: { kind: 'changed' },
+      layer: 'execution',
+      force: false,
+      pinData: null,
+      callTool,
+    };
+
+    const result = await interpret(request, deps);
+
+    expect(result.status).toBe('error');
+    expect(result.errors.some((e) => e.message.includes('missing metadata.id'))).toBe(true);
+  });
+
+  it('missing metadata.id with static-only layer proceeds without error', async () => {
+    const graphWithEmptyId = makeGraph(
+      ['trigger', 'httpReq', 'setNode', 'end'],
+      [['trigger', 'httpReq'], ['httpReq', 'setNode'], ['setNode', 'end']],
+      '',
+    );
+    const deps = createMockDeps({
+      buildGraph: vi.fn().mockReturnValue(graphWithEmptyId),
+    });
+
+    const request: ValidationRequest = {
+      workflowPath: '/test/workflow.ts',
+      target: { kind: 'changed' },
+      layer: 'static',
+      force: false,
+      pinData: null,
+    };
+
+    const result = await interpret(request, deps);
+
+    expect(result.status).toBe('pass');
+  });
+
+  it('trust state and snapshot persistence still use file-path-based workflowId', async () => {
+    const deps = createMockDeps();
+
+    const request: ValidationRequest = {
+      workflowPath: '/test/workflow.ts',
+      target: { kind: 'changed' },
+      layer: 'static',
+      force: false,
+      pinData: null,
+    };
+
+    await interpret(request, deps);
+
+    // loadTrustState and loadSnapshot should receive the file-path-based ID
+    const trustCall = vi.mocked(deps.loadTrustState).mock.calls[0]![0];
+    expect(trustCall).not.toBe('n8n-uuid-123');
+    expect(trustCall).toContain('workflow.ts');
+  });
+
+  it('layer: both with missing metadata.id returns static findings AND an execution error', async () => {
+    const callTool = vi.fn();
+    const graphWithEmptyId = makeGraph(
+      ['trigger', 'httpReq', 'setNode', 'end'],
+      [['trigger', 'httpReq'], ['httpReq', 'setNode'], ['setNode', 'end']],
+      '',
+    );
+    const deps = createMockDeps({
+      buildGraph: vi.fn().mockReturnValue(graphWithEmptyId),
+      detectDataLoss: vi.fn().mockReturnValue([{
+        node: 'httpReq',
+        kind: 'data-loss',
+        message: 'Potential data loss',
+        severity: 'warning',
+        context: {},
+      }]),
+    });
+
+    const request: ValidationRequest = {
+      workflowPath: '/test/workflow.ts',
+      target: { kind: 'changed' },
+      layer: 'both',
+      force: false,
+      pinData: null,
+      callTool,
+    };
+
+    const result = await interpret(request, deps);
+
+    // Should have execution error about missing metadata.id
+    expect(result.errors.some((e) => e.message.includes('missing metadata.id'))).toBe(true);
+    // Static analysis should still have run
+    expect(deps.detectDataLoss).toHaveBeenCalled();
+  });
+
+  it('whitespace-only metadata.id is treated as missing', async () => {
+    const callTool = vi.fn();
+    const graphWithWhitespaceId = makeGraph(
+      ['trigger', 'httpReq', 'setNode', 'end'],
+      [['trigger', 'httpReq'], ['httpReq', 'setNode'], ['setNode', 'end']],
+      '   ',
+    );
+    const deps = createMockDeps({
+      buildGraph: vi.fn().mockReturnValue(graphWithWhitespaceId),
+    });
+
+    const request: ValidationRequest = {
+      workflowPath: '/test/workflow.ts',
+      target: { kind: 'changed' },
+      layer: 'execution',
+      force: false,
+      pinData: null,
+      callTool,
+    };
+
+    const result = await interpret(request, deps);
+
+    expect(result.status).toBe('error');
+    expect(result.errors.some((e) => e.message.includes('missing metadata.id'))).toBe(true);
   });
 });

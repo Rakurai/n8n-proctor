@@ -42,12 +42,13 @@ describe('buildGraph', () => {
     expect(graph.displayNameIndex.get('Set Fields')).toBe('setFields');
   });
 
-  it('builds graph from JSON fixture', async () => {
-    const ast = await parseWorkflowFile(resolve(FIXTURES_DIR, 'linear-simple.json'));
-    const graph = buildGraph(ast);
-
-    expect(graph.nodes.size).toBe(3);
-    expect(graph.displayNameIndex.size).toBe(3);
+  it('rejects JSON file with MalformedWorkflowError mentioning n8nac', async () => {
+    await expect(parseWorkflowFile(resolve(FIXTURES_DIR, 'linear-simple.json'))).rejects.toThrow(
+      MalformedWorkflowError,
+    );
+    await expect(parseWorkflowFile(resolve(FIXTURES_DIR, 'linear-simple.json'))).rejects.toThrow(
+      /n8nac/,
+    );
   });
 
   it('builds graph from branching fixture', async () => {
@@ -146,15 +147,18 @@ describe('parseWorkflowFile', () => {
     expect(ast.nodes).toHaveLength(3);
   });
 
-  it('parses .json file', async () => {
-    const ast = await parseWorkflowFile(resolve(FIXTURES_DIR, 'linear-simple.json'));
-
-    expect(ast.nodes).toHaveLength(3);
+  it('throws MalformedWorkflowError for .json with message mentioning n8nac', async () => {
+    await expect(parseWorkflowFile('foo.json')).rejects.toThrow(MalformedWorkflowError);
+    await expect(parseWorkflowFile('foo.json')).rejects.toThrow(/n8nac/);
   });
 
   it('throws MalformedWorkflowError for unsupported extension', async () => {
     await expect(parseWorkflowFile('workflow.yaml')).rejects.toThrow(
       MalformedWorkflowError,
     );
+  });
+
+  it('throws MalformedWorkflowError for no extension', async () => {
+    await expect(parseWorkflowFile('foo')).rejects.toThrow(MalformedWorkflowError);
   });
 });

@@ -252,6 +252,18 @@ The phrase “compile+test step” expresses that reality. It reminds us that ex
 
 ---
 
+## Two-phase validation
+
+**Two-phase validation** is the operational model for how validation maps to the workflow development lifecycle.
+
+* **Phase 1 — Static (before push).** Static analysis runs locally against workflow source files. It does not require a running n8n instance. It catches structural and data-flow problems: broken expression references, data loss through replacement, schema mismatches, missing parameters. This phase is cheap, fast, and always available.
+
+* **Phase 2 — Execution (after push).** Execution-backed validation runs against a live n8n instance after the workflow has been pushed/deployed. It catches runtime problems that static analysis cannot: Code node output shape, LLM response format, conditional logic correctness, actual data values. This phase has real cost and requires the workflow to exist in n8n.
+
+The two phases are sequential: static analysis should always run first (it is the pre-flight check), and execution-backed validation is invoked only when runtime evidence is needed that static analysis cannot provide. The agent coordinates the push step between the two phases via n8nac.
+
+---
+
 ## Guardrail
 
 A **guardrail** is a product behavior that actively steers validation toward higher-value, lower-cost patterns.

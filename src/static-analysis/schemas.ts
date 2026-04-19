@@ -15,8 +15,7 @@ import type { ExpressionReference, StaticFinding } from './types.js';
 // ---------------------------------------------------------------------------
 
 /**
- * Minimal schema provider interface — compatible with @n8n-as-code/skills
- * NodeSchemaProvider. Defined locally to avoid hard dependency on skills package.
+ * Minimal schema provider interface for node output schemas.
  */
 export interface NodeSchemaProvider {
   getNodeSchema(nodeType: string): NodeSchema | undefined;

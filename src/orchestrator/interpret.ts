@@ -54,9 +54,11 @@ export async function interpret(
   }
 
   let graph: WorkflowGraph;
+  let n8nWorkflowId: string;
   try {
     const ast = await deps.parseWorkflowFile(request.workflowPath);
     graph = deps.buildGraph(ast);
+    n8nWorkflowId = graph.ast.metadata.id.trim();
   } catch (err) {
     return errorDiagnostic(
       `Failed to parse workflow: ${err instanceof Error ? err.message : String(err)}`,
@@ -164,61 +166,81 @@ export async function interpret(
   }
 
   // Step 6b: Execution (MCP is the sole execution backend)
+  const executionErrors: {
+    type: string;
+    message: string;
+    description: null;
+    node: null;
+    classification: 'platform';
+    context: Record<string, never>;
+  }[] = [];
   if (effectiveLayer === 'execution' || effectiveLayer === 'both') {
-    try {
-      const detected = await deps.detectCapabilities(
-        request.callTool ? { callTool: request.callTool } : undefined,
-      );
-      capabilities.mcpTools = detected.mcpAvailable;
+    if (!n8nWorkflowId) {
+      executionErrors.push({
+        type: 'OrchestratorError',
+        message:
+          'Cannot run execution validation: missing metadata.id in workflow file. Run n8nac push first to populate the workflow ID.',
+        description: null,
+        node: null,
+        classification: 'platform',
+        context: {},
+      });
+    } else {
+      try {
+        const detected = await deps.detectCapabilities(
+          request.callTool ? { callTool: request.callTool } : undefined,
+        );
+        capabilities.mcpTools = detected.mcpAvailable;
 
-      if (detected.mcpAvailable && request.callTool) {
-        const trustedBoundaries = resolvedTarget.nodes.filter((n) => activeTrust.nodes.has(n));
-        // Load cached pin data as prior artifacts (tier 2)
-        const priorArtifacts: Record<string, PinDataItem[]> = {};
-        const nodeHashes = computeCurrentHashes(graph, trustedBoundaries);
-        for (const boundary of trustedBoundaries) {
-          const hash = nodeHashes.get(boundary);
-          if (hash) {
-            const cached = await readCachedPinData(workflowId, hash);
-            if (cached) priorArtifacts[boundary as string] = cached;
+        if (detected.mcpAvailable && request.callTool) {
+          const trustedBoundaries = resolvedTarget.nodes.filter((n) => activeTrust.nodes.has(n));
+          // Load cached pin data as prior artifacts (tier 2)
+          const priorArtifacts: Record<string, PinDataItem[]> = {};
+          const nodeHashes = computeCurrentHashes(graph, trustedBoundaries);
+          for (const boundary of trustedBoundaries) {
+            const hash = nodeHashes.get(boundary);
+            if (hash) {
+              const cached = await readCachedPinData(workflowId, hash);
+              if (cached) priorArtifacts[boundary as string] = cached;
+            }
           }
-        }
 
-        const pinDataResult = deps.constructPinData(
-          graph,
-          trustedBoundaries,
-          request.pinData as Record<string, PinDataItem[]> | undefined,
-          Object.keys(priorArtifacts).length > 0 ? priorArtifacts : undefined,
-        );
-        usedPinData = pinDataResult.pinData;
-
-        const execResult = await deps.executeSmoke(
-          workflowId,
-          pinDataResult.pinData,
-          request.callTool,
-        );
-
-        executionId = execResult.executionId;
-
-        // Retrieve execution data via MCP
-        if (execResult.executionId) {
-          const mcpResult = await getExecution(
-            workflowId,
-            execResult.executionId,
-            request.callTool,
-            { includeData: true },
+          const pinDataResult = deps.constructPinData(
+            graph,
+            trustedBoundaries,
+            request.pinData as Record<string, PinDataItem[]> | undefined,
+            Object.keys(priorArtifacts).length > 0 ? priorArtifacts : undefined,
           );
-          if (mcpResult.data) {
-            executionData = mcpResult.data;
+          usedPinData = pinDataResult.pinData;
+
+          const execResult = await deps.executeSmoke(
+            n8nWorkflowId,
+            pinDataResult.pinData,
+            request.callTool,
+          );
+
+          executionId = execResult.executionId;
+
+          // Retrieve execution data via MCP
+          if (execResult.executionId) {
+            const mcpResult = await getExecution(
+              n8nWorkflowId,
+              execResult.executionId,
+              request.callTool,
+              { includeData: true },
+            );
+            if (mcpResult.data) {
+              executionData = mcpResult.data;
+            }
           }
         }
+      } catch (err) {
+        return errorDiagnostic(
+          `Execution failed: ${err instanceof Error ? err.message : String(err)}`,
+          runId,
+          startTime,
+        );
       }
-    } catch (err) {
-      return errorDiagnostic(
-        `Execution failed: ${err instanceof Error ? err.message : String(err)}`,
-        runId,
-        startTime,
-      );
     }
   }
 
@@ -249,6 +271,14 @@ export async function interpret(
     capabilities,
     meta,
   });
+
+  // Append execution errors (e.g., missing metadata.id) to the summary
+  if (executionErrors.length > 0) {
+    summary.errors.push(...executionErrors);
+    if (summary.status === 'pass') {
+      summary.status = 'error';
+    }
+  }
 
   // ── Step 8: Update trust (pass only) ────────────────────────────
   if (summary.status === 'pass') {

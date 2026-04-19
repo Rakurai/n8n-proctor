@@ -6,6 +6,27 @@
 
 Stop re-running the whole workflow. Vet what changed.
 
+## Prerequisites
+
+- **Node >= 20**
+- **n8n instance** — required for execution-layer validation (static analysis works without one)
+- **n8nac** — for workflow authoring and push to n8n ([n8n-as-code](https://github.com/EtienneLescot/n8n-as-code))
+
+## Setup
+
+```sh
+git clone <repo-url> && cd n8n-vet
+npm install
+npm run build
+cp .env.example .env   # then fill in values
+```
+
+`.env.example` contains:
+
+| Variable | Purpose |
+|----------|---------|
+| `N8N_VET_DATA_DIR` | Directory where n8n-vet stores trust state and other persistent data |
+
 ## Quick start
 
 **MCP server** (for agents via Claude Desktop, Cursor, etc.):
@@ -58,7 +79,7 @@ workflow file
                      update trust
 ```
 
-1. Parse the workflow (TypeScript or JSON via n8n-as-code)
+1. Parse the workflow (TypeScript via n8n-as-code)
 2. Build a traversable graph with node classification and expression references
 3. Load trust state — what was validated before, what changed since
 4. Compute the validation target — changed nodes + forward propagation
@@ -95,7 +116,7 @@ n8n-vet validate workflow.ts --json       # raw JSON (same as MCP output)
 
 ## Built on
 
-- [n8n-as-code](https://github.com/EtienneLescot/n8n-as-code) — workflow parsing, node type schemas, local-first workflow development
+- [n8n-as-code](https://github.com/EtienneLescot/n8n-as-code) (n8nac) — sibling tool for workflow authoring and push; n8n-vet and n8nac are independent tools that an agent coordinates, not layered dependencies
 - TypeScript, strict mode, ESM
 - MCP server via `@modelcontextprotocol/sdk`
 

@@ -70,7 +70,7 @@ function makeGraph(nodeNames: string[], edges: [string, string][]): WorkflowGrap
     forward,
     backward,
     displayNameIndex,
-    ast: { nodes: nodeAsts, connections: [] } as unknown as WorkflowAST,
+    ast: { nodes: nodeAsts, connections: [], metadata: { id: 'n8n-uuid-123', name: 'Test', active: false } } as unknown as WorkflowAST,
   };
 }
 
