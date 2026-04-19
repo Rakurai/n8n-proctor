@@ -9,7 +9,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 // ── Types ────────────────────────────────────────────────────────
@@ -34,7 +34,7 @@ interface WorkflowCreatePayload {
   name: string;
   nodes: WorkflowNode[];
   connections: Record<string, { main: WorkflowConnection[][] }>;
-  settings: { executionOrder: string };
+  settings: { executionOrder: string; availableInMCP?: boolean };
   active: boolean;
 }
 
@@ -93,7 +93,7 @@ const FIXTURES: Record<string, WorkflowCreatePayload> = {
       Trigger: { main: [[conn('Set')]] },
       Set: { main: [[conn('NoOp')]] },
     },
-    settings: { executionOrder: 'v1' },
+    settings: { executionOrder: 'v1', availableInMCP: true },
     active: false,
   },
 
@@ -108,7 +108,7 @@ const FIXTURES: Record<string, WorkflowCreatePayload> = {
       Trigger: { main: [[conn('Set')]] },
       // Orphaned HTTP is NOT connected
     },
-    settings: { executionOrder: 'v1' },
+    settings: { executionOrder: 'v1', availableInMCP: true },
     active: false,
   },
 
@@ -125,7 +125,7 @@ const FIXTURES: Record<string, WorkflowCreatePayload> = {
       'HTTP Request': { main: [[conn('Transform')]] },
       Transform: { main: [[conn('Use Original')]] },
     },
-    settings: { executionOrder: 'v1' },
+    settings: { executionOrder: 'v1', availableInMCP: true },
     active: false,
   },
 
@@ -138,7 +138,7 @@ const FIXTURES: Record<string, WorkflowCreatePayload> = {
     connections: {
       Trigger: { main: [[conn('Bad Expression')]] },
     },
-    settings: { executionOrder: 'v1' },
+    settings: { executionOrder: 'v1', availableInMCP: true },
     active: false,
   },
 
@@ -153,7 +153,7 @@ const FIXTURES: Record<string, WorkflowCreatePayload> = {
       Trigger: { main: [[conn('HTTP No Creds')]] },
       'HTTP No Creds': { main: [[conn('Process')]] },
     },
-    settings: { executionOrder: 'v1' },
+    settings: { executionOrder: 'v1', availableInMCP: true },
     active: false,
   },
 
@@ -179,7 +179,7 @@ const FIXTURES: Record<string, WorkflowCreatePayload> = {
       Trigger: { main: [[conn('If')]] },
       If: { main: [[conn('True Path')], [conn('False Path')]] },
     },
-    settings: { executionOrder: 'v1' },
+    settings: { executionOrder: 'v1', availableInMCP: true },
     active: false,
   },
 
@@ -198,7 +198,7 @@ const FIXTURES: Record<string, WorkflowCreatePayload> = {
       B: { main: [[conn('C')]] },
       C: { main: [[conn('D')]] },
     },
-    settings: { executionOrder: 'v1' },
+    settings: { executionOrder: 'v1', availableInMCP: true },
     active: false,
   },
 };
@@ -226,7 +226,7 @@ function parseArgs(): SeedArgs {
 
 // ── REST API Helpers ─────────────────────────────────────────────
 
-const N8N_BASE_URL = process.env.N8N_BASE_URL ?? 'http://localhost:5678';
+const N8N_HOST = process.env.N8N_HOST ?? 'http://localhost:5678';
 
 function getApiHeaders(): Record<string, string> {
   const apiKey = process.env.N8N_API_KEY ?? '';
@@ -241,7 +241,7 @@ async function findExistingWorkflow(name: string): Promise<string | null> {
 
   // Paginate through all workflows to find by name
   do {
-    const url = new URL(`${N8N_BASE_URL}/api/v1/workflows`);
+    const url = new URL(`${N8N_HOST}/api/v1/workflows`);
     url.searchParams.set('limit', '100');
     if (cursor) url.searchParams.set('cursor', cursor);
 
@@ -260,10 +260,12 @@ async function findExistingWorkflow(name: string): Promise<string | null> {
 
 async function createWorkflow(payload: WorkflowCreatePayload): Promise<string> {
   const headers = getApiHeaders();
-  const response = await fetch(`${N8N_BASE_URL}/api/v1/workflows`, {
+  // Strip 'active' — n8n API treats it as read-only on POST
+  const { active: _, ...createBody } = payload;
+  const response = await fetch(`${N8N_HOST}/api/v1/workflows`, {
     method: 'POST',
     headers,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(createBody),
   });
 
   if (!response.ok) {
@@ -277,10 +279,12 @@ async function createWorkflow(payload: WorkflowCreatePayload): Promise<string> {
 
 async function updateWorkflow(id: string, payload: WorkflowCreatePayload): Promise<void> {
   const headers = getApiHeaders();
-  const response = await fetch(`${N8N_BASE_URL}/api/v1/workflows/${id}`, {
+  // Strip 'active' — n8n API treats it as read-only
+  const { active: _, ...updateBody } = payload;
+  const response = await fetch(`${N8N_HOST}/api/v1/workflows/${id}`, {
     method: 'PUT',
     headers,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(updateBody),
   });
 
   if (!response.ok) {
@@ -291,23 +295,34 @@ async function updateWorkflow(id: string, payload: WorkflowCreatePayload): Promi
 
 // ── n8nac Pull ───────────────────────────────────────────────────
 
-function pullWorkflow(workflowId: string): string {
-  // n8nac pull writes a .ts file to the current n8nac project
+function pullWorkflow(workflowId: string, workflowName: string): string {
+  // n8nac pull writes a .ts file to the configured sync folder
   execFileSync('n8nac', ['pull', workflowId], { stdio: 'pipe', encoding: 'utf-8' });
 
-  // Find the pulled file — n8nac puts it relative to project root
-  // Look in typical n8nac output locations
-  const candidates = [
-    `workflows/${workflowId}.ts`,
-    `${workflowId}.ts`,
-  ];
+  // n8nac uses nested directory structure: syncFolder/instance/project/<name>.workflow.ts
+  // The filename is derived from the workflow name (kebab-case).
+  const syncFolder = resolve('test/integration/fixtures');
+  const found = findFileRecursive(syncFolder, `${workflowName}.workflow.ts`);
+  if (found) return found;
 
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return resolve(candidate);
+  // Fallback: search for any file containing the workflow ID or name
+  const byId = findFileRecursive(syncFolder, `${workflowId}.ts`);
+  if (byId) return byId;
+
+  throw new Error(`Could not find pulled workflow file for ${workflowId} (name: ${workflowName})`);
+}
+
+function findFileRecursive(dir: string, filename: string): string | null {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const found = findFileRecursive(full, filename);
+      if (found) return found;
+    } else if (entry.name === filename) {
+      return resolve(full);
+    }
   }
-
-  // If we can't find by ID, search for the file by name pattern
-  throw new Error(`Could not find pulled workflow file for ${workflowId}`);
+  return null;
 }
 
 // ── Main ─────────────────────────────────────────────────────────
@@ -357,7 +372,7 @@ async function main(): Promise<void> {
     manifest[name] = workflowId;
 
     // Pull via n8nac and copy to fixtures dir
-    const pulledPath = pullWorkflow(workflowId);
+    const pulledPath = pullWorkflow(workflowId, payload.name);
     const destPath = join(fixturesDir, `${name}.ts`);
     copyFileSync(pulledPath, destPath);
     console.log(`    → Pulled to: ${destPath}`);
@@ -366,6 +381,13 @@ async function main(): Promise<void> {
   if (!args.dryRun) {
     writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
     console.log(`\nManifest written: ${manifestPath}`);
+
+    // Clear local state so MCP access is re-verified on next test run
+    const statePath = join(fixturesDir, '.local-state.json');
+    if (existsSync(statePath)) {
+      rmSync(statePath);
+      console.log('Local state cleared (MCP access will be re-verified)');
+    }
   }
 
   console.log('\nDone.');
