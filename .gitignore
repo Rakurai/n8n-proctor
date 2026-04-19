@@ -16,6 +16,9 @@ Thumbs.db
 *.log
 coverage/
 
+# Secrets
+.env
+
 # Project local state
 .scratch/
 .n8n-vet/

@@ -1,8 +1,35 @@
 # n8n-vet
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg?logo=typescript&logoColor=white)](tsconfig.json)
+
 Stop re-running the whole workflow. Vet what changed.
 
----
+## Quick start
+
+**MCP server** (for agents via Claude Desktop, Cursor, etc.):
+
+```json
+{
+  "mcpServers": {
+    "n8n-vet": {
+      "command": "node",
+      "args": ["./dist/mcp/serve.js"],
+      "env": {
+        "N8N_HOST": "http://localhost:5678",
+        "N8N_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+**CLI** (for local debugging):
+
+```sh
+npx n8n-vet validate workflow.ts
+```
 
 ## The problem
 
@@ -22,7 +49,18 @@ n8n-vet is a validation control tool for agent-built n8n workflows. It exposes a
 
 ## How it works
 
-The validation pipeline:
+```
+workflow file
+     │
+     ▼
+┌─ parse ─── graph ─── trust ─── target ─── guardrails ─┐
+│                                                        │
+│  static analysis (always)    execution (when needed)   │
+│                                                        │
+└────────────────── diagnostic summary ──────────────────┘
+                          │
+                     update trust
+```
 
 1. Parse the workflow (TypeScript or JSON via n8n-as-code)
 2. Build a traversable graph with node classification and expression references
@@ -35,17 +73,19 @@ The validation pipeline:
 
 For the engineering details: [Strategy](docs/STRATEGY.md) covers the target-selection, prioritization, and rerun-suppression approaches (including RTS/TIA-style targeting and DeFlaker-style rerun suppression) and their evidence basis. [Design specs](docs/reference/INDEX.md) cover the type contracts and subsystem behavior.
 
-## For agents
+## MCP tools
 
 n8n-vet exposes three MCP tools:
 
-- **`validate`** — the primary tool. Accepts a workflow path and optional target, resolves scope, applies guardrails, runs validation, returns a diagnostic summary.
-- **`trust_status`** — inspect what's trusted, what changed, what needs validation.
-- **`explain`** — dry-run guardrail evaluation. Understand what `validate` would do before calling it.
+| Tool | Purpose |
+|------|---------|
+| **`validate`** | Validate a workflow — resolves scope, applies guardrails, runs analysis, returns diagnostics |
+| **`trust_status`** | Inspect what's trusted, what changed, what needs validation |
+| **`explain`** | Dry-run guardrail evaluation — preview what `validate` would do |
 
 Default behavior when the agent calls `validate` with no target: validate whatever changed since the last successful run, using static analysis. The cheapest useful default.
 
-## Debug CLI
+## CLI
 
 A secondary CLI exists for local debugging and development:
 
@@ -59,10 +99,10 @@ n8n-vet validate workflow.ts --json       # raw JSON (same as MCP output)
 
 ## Built on
 
-- [n8n-as-code](https://github.com/n8n-as-code) — workflow parsing, node type schemas, local-first workflow development
+- [n8n-as-code](https://github.com/EtienneLescot/n8n-as-code) — workflow parsing, node type schemas, local-first workflow development
 - TypeScript, strict mode, ESM
 - MCP server via `@modelcontextprotocol/sdk`
 
 ## License
 
-MIT
+[MIT](LICENSE)
