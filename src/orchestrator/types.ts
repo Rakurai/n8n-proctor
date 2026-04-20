@@ -53,6 +53,10 @@ export interface ValidationRequest {
   force: boolean;
   pinData: PinData | null;
   callTool?: McpToolCaller;
+  /** n8n host URL — needed by the availableInMCP pre-flight fix. */
+  n8nHost?: string;
+  /** n8n REST API key — needed by the availableInMCP pre-flight fix. */
+  n8nApiKey?: string;
 }
 
 // ── InterpretedRequest ────────────────────────────────────────────

@@ -15,9 +15,15 @@
       "type": "string",
       "sensitive": false
     },
+    "n8n_mcp_token": {
+      "title": "n8n MCP Access Token",
+      "description": "MCP access token for n8n execution-backed validation (generated in n8n Settings → API)",
+      "type": "string",
+      "sensitive": true
+    },
     "n8n_api_key": {
-      "title": "n8n API Key",
-      "description": "n8n API key for execution-backed validation",
+      "title": "n8n REST API Key",
+      "description": "Optional REST API key — only needed when n8nac strips the availableInMCP flag on push",
       "type": "string",
       "sensitive": true
     }

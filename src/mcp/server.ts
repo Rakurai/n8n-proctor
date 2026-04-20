@@ -11,6 +11,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { McpResponse } from '../errors.js';
 import { mapToMcpError } from '../errors.js';
+import type { McpToolCaller } from '../execution/mcp-client.js';
 import { interpret } from '../orchestrator/interpret.js';
 import type { OrchestratorDeps } from '../orchestrator/types.js';
 import type { ValidationRequest } from '../orchestrator/types.js';
@@ -100,7 +101,12 @@ function validatePathBoundary(workflowPath: string): string {
 // ── Server factory ───────────────────────────────────────────────
 
 /** Create an MCP server with all three n8n-vet tools registered. */
-export function createServer(deps: OrchestratorDeps): McpServer {
+export function createServer(
+  deps: OrchestratorDeps,
+  callTool?: McpToolCaller,
+  n8nHost?: string,
+  n8nApiKey?: string,
+): McpServer {
   const server = new McpServer({ name: 'n8n-vet', version: '0.1.0' });
 
   // ── validate ─────────────────────────────────────────────────
@@ -122,6 +128,9 @@ export function createServer(deps: OrchestratorDeps): McpServer {
           layer: resolveLayer(args.layer),
           force: args.force ?? false,
           pinData: args.pinData ?? null,
+          ...(callTool ? { callTool } : {}),
+          ...(n8nHost ? { n8nHost } : {}),
+          ...(n8nApiKey ? { n8nApiKey } : {}),
         };
         const summary = await interpret(request, deps);
         return wrapSuccess(summary);
