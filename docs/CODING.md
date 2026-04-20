@@ -169,52 +169,7 @@ These are the most common agent-introduced anti-patterns. All are prohibited.
 
 ## Testing
 
-**Principle**: Confidence, not ceremony. No trivial tests, no redundant tests.
-
-**Rules**
-
-* Tests exist to give confidence that the code works correctly. A smaller number of clear, meaningful tests is better than broad shallow coverage. Do not target a coverage percentage.
-* **Happy-path tests are mandatory.** Correct inputs produce correct outputs. These should always pass and run fast.
-* **Error-path tests are mandatory for public API boundaries.** If the public API defines typed errors, test that they are thrown under the documented conditions. Do not test internal error paths that consumers never see.
-* **Edge/exhaustive tests are opt-in.** Boundary values, combinatorial coverage, and rare conditions are valuable but should be marked or separated so the default test run stays fast.
-* **Test where the logic lives.** Framework plumbing is already tested by the framework. Do not retest it.
-* Tests should fail explicitly when something is wrong. Avoid broad `catch` blocks, loose assertions, or tests that assert only that "no exception was raised."
-* Assert behavior, not implementation. Test through public interfaces, not private state.
-* Mock dependencies, not the code being tested. Signs of over-mocking: the mock mirrors production logic; the test passes regardless of production changes.
-* **No trivial tests.** Do not test that an enum has its value, that a constructor sets a field, or that a getter returns what was set. If the test would pass even with a broken implementation, it has no value.
-* **No redundant tests.** If two tests verify the same contract through the same path, delete one. Each test must justify its existence by covering a distinct behavior.
-* If tests or code fail, fix the **implementation**, not by trivializing tests.
-* Prefer a few high-signal integration/contract tests over broad unit coverage.
-
----
-
-## Integration Testing
-
-Integration tests prove the product works as promised to agents. Every scenario must be **honest** — testing what matters, not just that something ran.
-
-### Assert on data, not just status
-
-`assertStatus(result, 'pass')` proves nothing about correctness. After checking status, assert the *content*: error classifications, node names in executed paths, guardrail action types, error messages. A regression that returns the right status but garbled data must fail.
-
-### Test the product's promises
-
-The SKILL.md is the contract with agent users. Each promise needs at least one integration test:
-- Error classifications (`wiring`, `expression`, `external-service`, etc.) — assert the classification string, not just presence
-- The validate→push→test lifecycle — as a connected sequence, with trust carrying across
-- Test-refusal guardrail — call `test` *without* `force` on a structurally-analyzable change
-- Error envelope types (`workflow_not_found`, `parse_error`, etc.) — assert the error type string
-- `pinData` parameter — provide explicit pin data and verify execution uses it
-
-### Don't bypass what you're testing
-
-Every execution scenario using `force: true` bypasses all guardrails. That's necessary for some tests, but **at least one execution scenario must run without force** to prove guardrails work in the execution path.
-
-### Test the handoffs
-
-The product's value is in subsystem integration, not individual subsystem correctness (unit tests cover that). Focus on:
-- Trust from validate carrying into test (pin data from trusted boundaries)
-- Guardrail decisions affecting execution scope
-- Static findings and execution findings combining correctly in diagnostics
+See `test/TESTING.md` for the complete testing guide — unit test rules, integration scenario discipline, fixtures, assertion helpers, coverage inventory, and known gaps.
 
 ---
 
@@ -373,26 +328,3 @@ When refactoring:
 * Mixing `require()` and `import` in the same project.
 * `enum` where a string union type suffices.
 * Generic type parameters with only one concrete instantiation.
-
----
-
-## Quick Checklist
-
-* [ ] `tsconfig.json` has `strict: true`.
-* [ ] No `any` (or TODO-marked if unavoidable).
-* [ ] DI explicit; no hidden globals or dynamic imports in business logic.
-* [ ] Fail-fast on config/deps; typed errors with clear messages (not process crashes).
-* [ ] Errors handled at owner layer only; typed domain errors at public API boundaries.
-* [ ] Library logging is replaceable; no `console.log` in library code.
-* [ ] Schema-first contracts at all boundaries; validation library at edges.
-* [ ] Happy-path + public error-path tests; no trivial or redundant tests.
-* [ ] Public API doc comments explain contracts, constraints, and errors.
-* [ ] No fallbacks, no silent failures, no phantom implementations.
-* [ ] Every new symbol is reachable from an entry point. No dead code.
-* [ ] No floating promises; `no-floating-promises` lint rule enabled.
-* [ ] Classes only for instance state/polymorphism; plain functions otherwise.
-* [ ] No npm packages for platform-native operations.
-* [ ] No barrel files; import from source.
-* [ ] One module system (ESM or CJS); no mixing.
-* [ ] String union types by default; `enum` only with concrete justification.
-* [ ] Generics only when two or more concrete instantiations exist.

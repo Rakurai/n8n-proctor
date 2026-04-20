@@ -24,16 +24,10 @@ npm run build
 | `npm test` | Run unit tests (vitest) |
 | `npm run test:watch` | Watch mode |
 | `npm run test:integration` | Integration tests against live n8n |
-| `npm run test:integration -- --scenario 02` | Single scenario |
-| `npm run test:integration -- --verbose` | With diagnostic output |
-| `npm run test:integ:check` | Check integration prerequisites |
-| `npm run test:integ:seed` | Reseed test fixtures on n8n |
 | `npm run typecheck` | Type-check without emitting |
 | `npm run lint` | Lint with Biome |
 | `npm run lint:fix` | Auto-fix lint issues |
 | `npm run format` | Format with Biome |
-
-Integration scripts use `dotenv-cli` to load `.env` automatically.
 
 ## Environment Variables
 
@@ -66,44 +60,10 @@ claude mcp add n8nac -- npx --yes n8nac mcp
 
 For integration testing, the env vars above are used instead.
 
-## Integration Tests
+## Testing
 
-Integration tests run against a live n8n instance. They exercise the full
-pipeline: parse → graph → trust → target → guardrails → analysis → execution → diagnostics.
-
-### First-Time Setup
-
-```sh
-# 1. Set env vars (see above)
-# 2. Configure n8nac to point at your n8n instance
-n8nac instance add --yes --host $N8N_HOST --api-key $N8N_API_KEY --project-index 1
-
-# 3. Seed test workflows on n8n
-npm run build
-npm run test:integ:seed
-
-# 4. Commit the fixtures (they're static git-distributed artifacts)
-git add test/integration/fixtures/
-```
-
-### Adding a New Fixture
-
-1. Add the workflow definition to `test/integration/seed.ts` in the `FIXTURES` object
-2. Run `npx tsx test/integration/seed.ts --fixture <name>` to create and pull it
-3. Set `availableInMCP: true` in the pulled `.ts` file's `settings`
-4. Add the fixture name to `manifest.json` (seed.ts does this automatically)
-5. Write a scenario in `test/integration/scenarios/`
-6. Register the scenario in `test/integration/run.ts`
-
-### The `availableInMCP` Workaround
-
-n8n requires `availableInMCP: true` in workflow settings for MCP tool calls to work.
-Older n8nac versions strip this flag on push. The integration test setup detects this
-and re-enables it via REST API if needed, caching the result in
-`test/integration/fixtures/.local-state.json` (gitignored).
-
-This is the **only** use of the n8n REST API in n8n-vet. It will be removed when the
-minimum supported n8nac version preserves the flag.
+See [`test/TESTING.md`](test/TESTING.md) for the complete testing guide — unit test layout,
+integration scenario inventory, fixture setup, assertion helpers, known gaps, and lessons learned.
 
 ## Project Structure
 

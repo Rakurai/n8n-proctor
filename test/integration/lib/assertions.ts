@@ -6,6 +6,7 @@
  */
 
 import type { DiagnosticSummary, ErrorClassification } from '../../../src/types/diagnostic.js';
+import type { NodeAnnotationStatus } from '../../../src/types/diagnostic.js';
 import type { GuardrailAction } from '../../../src/types/guardrail.js';
 import type { McpResponse, McpErrorType } from '../../../src/errors.js';
 import type { TrustStatusReport } from '../../../src/types/surface.js';
@@ -217,6 +218,79 @@ export function assertMcpErrorType(
   if (response.error.type !== expectedType) {
     throw new Error(
       `Expected error type '${expectedType}', got '${response.error.type}'${ctx}`,
+    );
+  }
+}
+
+export function assertNodeAnnotation(
+  summary: DiagnosticSummary,
+  nodeName: string,
+  expectedStatus: NodeAnnotationStatus,
+  fixture?: string,
+): void {
+  const ctx = fixture ? ` [fixture: ${fixture}]` : '';
+  const match = summary.nodeAnnotations.find(a => a.node === nodeName);
+  if (!match) {
+    const found = summary.nodeAnnotations.map(a => `${a.node}:${a.status}`).join(', ') || 'none';
+    throw new Error(
+      `Expected annotation for node '${nodeName}', found: [${found}]${ctx}`,
+    );
+  }
+  if (match.status !== expectedStatus) {
+    throw new Error(
+      `Expected node '${nodeName}' annotation '${expectedStatus}', got '${match.status}' (reason: ${match.reason})${ctx}`,
+    );
+  }
+}
+
+export function assertAnnotationCount(
+  summary: DiagnosticSummary,
+  expected: number,
+  fixture?: string,
+): void {
+  const ctx = fixture ? ` [fixture: ${fixture}]` : '';
+  if (summary.nodeAnnotations.length !== expected) {
+    throw new Error(
+      `Expected ${expected} node annotations, got ${summary.nodeAnnotations.length}${ctx}`,
+    );
+  }
+}
+
+export function assertHintPresent(
+  summary: DiagnosticSummary,
+  severity: 'info' | 'warning' | 'danger',
+  substring?: string,
+  fixture?: string,
+): void {
+  const ctx = fixture ? ` [fixture: ${fixture}]` : '';
+  const matches = summary.hints.filter(h => h.severity === severity);
+  if (matches.length === 0) {
+    const found = summary.hints.map(h => `${h.severity}: ${h.message.slice(0, 60)}`).join('; ') || 'none';
+    throw new Error(
+      `Expected hint with severity '${severity}', found: [${found}]${ctx}`,
+    );
+  }
+  if (substring) {
+    const match = matches.find(h => h.message.toLowerCase().includes(substring.toLowerCase()));
+    if (!match) {
+      const msgs = matches.map(h => h.message.slice(0, 80)).join('; ');
+      throw new Error(
+        `Expected '${severity}' hint containing '${substring}', got: [${msgs}]${ctx}`,
+      );
+    }
+  }
+}
+
+export function assertHintCount(
+  summary: DiagnosticSummary,
+  expected: number,
+  fixture?: string,
+): void {
+  const ctx = fixture ? ` [fixture: ${fixture}]` : '';
+  if (summary.hints.length !== expected) {
+    const found = summary.hints.map(h => `${h.severity}: ${h.message.slice(0, 60)}`).join('; ') || 'none';
+    throw new Error(
+      `Expected ${expected} hints, got ${summary.hints.length}: [${found}]${ctx}`,
     );
   }
 }

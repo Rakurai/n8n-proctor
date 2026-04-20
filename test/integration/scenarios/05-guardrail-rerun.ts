@@ -83,11 +83,14 @@ async function run(ctx: IntegrationContext): Promise<void> {
     throw new Error('Expected guardrailExplanation to contain a guardrailDecision');
   }
 
-  // The decision should not be 'proceed' since nothing changed
-  if (explanation.guardrailDecision.action === 'proceed') {
+  // C3: The decision should match what interpret() returned — same action, meaningful explanation
+  if (explanation.guardrailDecision.action !== guardrailAction.action) {
     throw new Error(
-      `Expected guardrail explanation to show non-proceed action, got: ${explanation.guardrailDecision.action}`,
+      `Expected guardrail explanation action '${guardrailAction.action}', got: '${explanation.guardrailDecision.action}'`,
     );
+  }
+  if (!explanation.guardrailDecision.explanation || explanation.guardrailDecision.explanation.length === 0) {
+    throw new Error('Expected guardrail explanation to have non-empty explanation text');
   }
 }
 

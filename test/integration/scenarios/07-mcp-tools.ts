@@ -102,8 +102,8 @@ async function run(ctx: IntegrationContext): Promise<void> {
       throw new Error(`Expected error type 'workflow_not_found' or 'parse_error', got '${invalidExplainResult.error.type}'`);
     }
 
-    // Test 7: test tool via MCP transport — exercises the test handler (R4)
-    // Without MCP execution capability the server returns a diagnostic with status 'error'
+    // Test 7: test tool via MCP transport — exercises the test handler (R4, C1)
+    // The MCP server process has no n8n MCP credentials → falls back to static-only
     const testResult = await client.test({
       workflowPath: happyPath,
       kind: 'workflow',
@@ -113,13 +113,28 @@ async function run(ctx: IntegrationContext): Promise<void> {
     if (!testResult.success) {
       throw new Error(`test tool MCP transport failed unexpectedly: ${JSON.stringify(testResult.error)}`);
     }
-    // interpret handles execution errors internally → returns success envelope with diagnostic
-    const testData = testResult.data as { status?: string };
+    const testData = testResult.data as {
+      status?: string;
+      evidenceBasis?: string;
+      nodeAnnotations?: unknown[];
+      hints?: unknown[];
+    };
     if (!testData?.status) {
       throw new Error('Expected test tool to return diagnostic with status');
     }
-    // Without MCP connection the test tool gracefully returns an error diagnostic
-    // (status either 'pass', 'fail', or 'error' — all are valid diagnostics)
+    // Without n8n MCP connection: static-only evidence, pass status (happy-path has no static issues)
+    if (testData.status !== 'pass') {
+      throw new Error(`Expected test tool status 'pass', got '${testData.status}'`);
+    }
+    if (testData.evidenceBasis !== 'static') {
+      throw new Error(`Expected evidenceBasis 'static' (no MCP in server process), got '${testData.evidenceBasis}'`);
+    }
+    if (!Array.isArray(testData.nodeAnnotations)) {
+      throw new Error('Expected nodeAnnotations array in test diagnostic');
+    }
+    if (!Array.isArray(testData.hints)) {
+      throw new Error('Expected hints array in test diagnostic');
+    }
 
     // Test 8: test tool on no-id fixture — "test before push" → precondition_error envelope (SP2)
     const noIdPath = resolve(join(ctx.fixturesDir, 'no-id.ts'));

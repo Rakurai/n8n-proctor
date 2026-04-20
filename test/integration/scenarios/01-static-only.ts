@@ -10,7 +10,7 @@
 import { resolve, join } from 'node:path';
 import { interpret } from '../../../src/orchestrator/interpret.js';
 import { buildTestDeps } from '../lib/deps.js';
-import { assertStatus, assertFindingPresent, assertFindingOnNode, assertEvidenceBasis } from '../lib/assertions.js';
+import { assertStatus, assertFindingPresent, assertFindingOnNode, assertEvidenceBasis, assertNodeAnnotation, assertAnnotationCount, assertHintPresent } from '../lib/assertions.js';
 import type { IntegrationContext } from '../lib/setup.js';
 import type { Scenario } from '../run.js';
 
@@ -48,6 +48,14 @@ async function run(ctx: IntegrationContext): Promise<void> {
   if (result1.executedPath !== null) {
     throw new Error('Expected executedPath to be null for static-only validation');
   }
+
+  // B3: nodeAnnotations — one per target node, nodes with findings are 'validated'
+  assertAnnotationCount(result1, result1.target.nodes.length);
+  // The node that produced the wiring error should be 'validated'
+  assertNodeAnnotation(result1, wiringError.node, 'validated');
+
+  // B4: hints — static-only run should include the info hint about execution
+  assertHintPresent(result1, 'info', 'static analysis only');
 
   // Test 2: broken-wiring passes static (orphaned node detection not yet implemented)
   const brokenWiringPath = resolve(join(ctx.fixturesDir, 'broken-wiring.ts'));

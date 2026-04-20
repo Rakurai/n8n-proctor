@@ -12,7 +12,7 @@
 import { resolve, join } from 'node:path';
 import { interpret } from '../../../src/orchestrator/interpret.js';
 import { buildTestDeps } from '../lib/deps.js';
-import { assertStatus, assertEvidenceBasis, assertFindingOnNode } from '../lib/assertions.js';
+import { assertStatus, assertEvidenceBasis, assertFindingOnNode, assertAnnotationCount } from '../lib/assertions.js';
 import type { IntegrationContext } from '../lib/setup.js';
 import type { Scenario } from '../run.js';
 
@@ -44,6 +44,21 @@ async function run(ctx: IntegrationContext): Promise<void> {
 
     // The error should be an external-service classification on the HTTP node
     assertFindingOnNode(execResult, 'external-service', 'HTTP No Creds');
+  } else {
+    // C2: Without MCP, validate statically — fixture should still parse and produce annotations
+    const staticResult = await interpret(
+      {
+        workflowPath: credFailurePath,
+        target: { kind: 'workflow' },
+        tool: 'validate',
+        force: false,
+        pinData: null,
+      },
+      deps,
+    );
+
+    assertEvidenceBasis(staticResult, 'static');
+    assertAnnotationCount(staticResult, staticResult.target.nodes.length);
   }
 }
 

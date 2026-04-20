@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { interpret } from '../../../src/orchestrator/interpret.js';
 import { buildTrustStatusReport } from '../../../src/surface.js';
 import { buildTestDeps } from '../lib/deps.js';
-import { assertStatus, assertTrusted, assertUntrusted } from '../lib/assertions.js';
+import { assertStatus, assertTrusted, assertUntrusted, assertTrustedWith } from '../lib/assertions.js';
 import type { IntegrationContext } from '../lib/setup.js';
 import type { Scenario } from '../run.js';
 
@@ -41,13 +41,13 @@ async function run(ctx: IntegrationContext): Promise<void> {
 
   assertStatus(result1, 'pass');
 
-  // Verify all nodes are trusted
+  // Verify all nodes are trusted with static evidence (C4)
   const trust1 = await buildTrustStatusReport(tempCopy, deps);
-  assertTrusted(trust1, 'Trigger');
-  assertTrusted(trust1, 'A');
-  assertTrusted(trust1, 'B');
-  assertTrusted(trust1, 'C');
-  assertTrusted(trust1, 'D');
+  assertTrustedWith(trust1, 'Trigger', 'static');
+  assertTrustedWith(trust1, 'A', 'static');
+  assertTrustedWith(trust1, 'B', 'static');
+  assertTrustedWith(trust1, 'C', 'static');
+  assertTrustedWith(trust1, 'D', 'static');
 
   // Step 2: Edit node B's parameter value in the temp copy
   const content = readFileSync(tempCopy, 'utf-8');

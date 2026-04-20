@@ -15,9 +15,6 @@ npm run build          # TypeScript compilation (tsc)
 npm test               # Run all tests (vitest)
 npm run test:watch     # Watch mode
 npm run test:integration  # Integration tests (dotenv -- tsx)
-npm run test:integration -- --scenario 02  # Single scenario
-npm run test:integ:check  # Check integration prerequisites
-npm run test:integ:seed   # Reseed test fixtures
 npm run typecheck      # Type-check without emitting (tsc --noEmit)
 npm run lint           # Lint with Biome (biome check src/)
 npm run lint:fix       # Auto-fix lint issues
@@ -28,8 +25,7 @@ Run a single test file: `npx vitest run test/guardrails/evaluate.test.ts`
 
 Run tests matching a pattern: `npx vitest run -t "pattern"`
 
-Integration tests require a running n8n instance with MCP access.
-All integration scripts use `dotenv-cli` to load `.env` automatically.
+For the full testing guide (scenarios, fixtures, assertion helpers, known gaps), see `test/TESTING.md`.
 
 ## Code Architecture
 
@@ -60,8 +56,6 @@ parse → graph → trust → target → guardrails → static analysis → exec
 - `src/surface.ts` — public surface helpers (trust status reports, guardrail explanations)
 - `src/errors.ts` — error mapping to MCP error types
 
-**Test structure:** Unit tests in `test/` mirror `src/` subsystem layout. Type-checking tests use `.test-d.ts` suffix. Integration tests in `test/integration/` with 8 scenarios covering the full pipeline.
-
 **Specs:** Each implementation phase has a full design package in `specs/NNN-feature-name/` with spec.md, plan.md, tasks.md, contracts/, research, and audit findings.
 
 ## Design Documents
@@ -81,7 +75,7 @@ Read these before making architectural decisions:
 
 ## Key Domain Concepts
 
-Understand these before working on the codebase (defined in `docs/CONCEPTS.md`):
+Understand these before working on the codebase. See `docs/CONCEPTS.md` for full definitions with context and relationships.
 
 - **Workflow slice** — bounded region of the graph relevant to current change (the change unit)
 - **Workflow path** — concrete execution route through a slice (the validation unit)
@@ -103,6 +97,8 @@ These are non-negotiable product principles that should guide all implementation
 7. **Trusted boundaries reduce work.** Don't force re-proving unchanged, previously validated regions.
 
 ## Code Discipline
+
+See `docs/CODING.md` for the full standard. Key principles:
 
 - **Fail-fast**: No defensive programming, no fallback logic. Let errors raise.
 - **Contract-driven**: Validate at boundaries, then trust internally. Don't re-check conditions deeper in the call stack.

@@ -13,7 +13,7 @@ import { resolve, join } from 'node:path';
 import { interpret } from '../../../src/orchestrator/interpret.js';
 import { buildTrustStatusReport } from '../../../src/surface.js';
 import { buildTestDeps } from '../lib/deps.js';
-import { assertStatus, assertNoFindings, assertTrusted, assertEvidenceBasis, assertExecutedPathOrder } from '../lib/assertions.js';
+import { assertStatus, assertNoFindings, assertTrusted, assertEvidenceBasis, assertExecutedPathOrder, assertAnnotationCount, assertNodeAnnotation } from '../lib/assertions.js';
 import type { IntegrationContext } from '../lib/setup.js';
 import type { Scenario } from '../run.js';
 
@@ -50,6 +50,14 @@ async function run(ctx: IntegrationContext): Promise<void> {
     if (!result.capabilities.mcpTools) {
       throw new Error('Expected capabilities.mcpTools to be true');
     }
+
+    // B3: nodeAnnotations — all executed nodes should be 'validated'
+    assertAnnotationCount(result, result.target.nodes.length);
+    assertNodeAnnotation(result, 'Trigger', 'validated');
+    assertNodeAnnotation(result, 'Set', 'validated');
+    // Known: 'Noop' is 'skipped' not 'validated' — n8n execution data uses 'NoOp'
+    // but graph uses 'Noop'. Annotation can't match across the name mismatch.
+    assertNodeAnnotation(result, 'Noop', 'skipped');
   } else {
     // Without MCP: execution skipped gracefully
     assertEvidenceBasis(result, 'static');

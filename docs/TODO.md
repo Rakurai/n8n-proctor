@@ -27,14 +27,6 @@ Depends on confirming whole-workflow execution as the permanent model. Design in
 
 `broken-wiring.ts` fixture passes static analysis because orphaned/disconnected node detection is not implemented. The integration test (scenario 01) documents this explicitly. Scope: add a graph-connectivity check in `src/static-analysis/` that flags nodes with no path from a trigger. (test/integration/scenarios/01-static-only.ts lines 6, 40)
 
-### Test Coverage Gaps
-
-- **Expression error classification** — No scenario exercises the expression-error diagnostic path end-to-end. The `expression-bug` fixture exists but only tests static analysis. Add a scenario that triggers execution with expression errors and validates the diagnostic classifies them correctly.
-
-- **Guardrail narrowing** — No scenario specifically tests the guardrail *narrowing* behavior where a `both` request is redirected to `static` because changes are structurally analyzable. Currently bypassed with `force: true` in execution scenarios.
-
-- **Node annotations validation** — No scenario tests the `annotations` static check. Low priority — primarily cosmetic.
-
 ### Distribution
 
 - **GitHub Copilot agent support** — Needs separate config files and marketplace listing. Same MCP core works.
