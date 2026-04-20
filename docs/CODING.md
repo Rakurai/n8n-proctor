@@ -188,6 +188,36 @@ These are the most common agent-introduced anti-patterns. All are prohibited.
 
 ---
 
+## Integration Testing
+
+Integration tests prove the product works as promised to agents. Every scenario must be **honest** — testing what matters, not just that something ran.
+
+### Assert on data, not just status
+
+`assertStatus(result, 'pass')` proves nothing about correctness. After checking status, assert the *content*: error classifications, node names in executed paths, guardrail action types, error messages. A regression that returns the right status but garbled data must fail.
+
+### Test the product's promises
+
+The SKILL.md is the contract with agent users. Each promise needs at least one integration test:
+- Error classifications (`wiring`, `expression`, `external-service`, etc.) — assert the classification string, not just presence
+- The validate→push→test lifecycle — as a connected sequence, with trust carrying across
+- Test-refusal guardrail — call `test` *without* `force` on a structurally-analyzable change
+- Error envelope types (`workflow_not_found`, `parse_error`, etc.) — assert the error type string
+- `pinData` parameter — provide explicit pin data and verify execution uses it
+
+### Don't bypass what you're testing
+
+Every execution scenario using `force: true` bypasses all guardrails. That's necessary for some tests, but **at least one execution scenario must run without force** to prove guardrails work in the execution path.
+
+### Test the handoffs
+
+The product's value is in subsystem integration, not individual subsystem correctness (unit tests cover that). Focus on:
+- Trust from validate carrying into test (pin data from trusted boundaries)
+- Guardrail decisions affecting execution scope
+- Static findings and execution findings combining correctly in diagnostics
+
+---
+
 ## Over-Engineering (Prohibited)
 
 These patterns are common agent failure modes. All are prohibited unless a current requirement demands them.

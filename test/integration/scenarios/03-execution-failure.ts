@@ -12,7 +12,7 @@
 import { resolve, join } from 'node:path';
 import { interpret } from '../../../src/orchestrator/interpret.js';
 import { buildTestDeps } from '../lib/deps.js';
-import { assertStatus } from '../lib/assertions.js';
+import { assertStatus, assertEvidenceBasis, assertFindingOnNode } from '../lib/assertions.js';
 import type { IntegrationContext } from '../lib/setup.js';
 import type { Scenario } from '../run.js';
 
@@ -35,17 +35,15 @@ async function run(ctx: IntegrationContext): Promise<void> {
     );
 
     assertStatus(execResult, 'fail');
+    assertEvidenceBasis(execResult, 'execution');
 
     // Capabilities should report MCP tools available
     if (!execResult.capabilities.mcpTools) {
       throw new Error('Expected capabilities.mcpTools to be true');
     }
 
-    // The error should reference the HTTP node
-    const httpError = execResult.errors.find(e => e.node === 'HTTP No Creds');
-    if (!httpError) {
-      throw new Error('Expected an error on node "HTTP No Creds"');
-    }
+    // The error should be an external-service classification on the HTTP node
+    assertFindingOnNode(execResult, 'external-service', 'HTTP No Creds');
   }
 }
 

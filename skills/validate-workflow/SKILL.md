@@ -114,8 +114,10 @@ The `DiagnosticSummary` has a `status` field: `pass`, `fail`, `error`, `skipped`
 
 - **pass** — No issues. Trust updated.
 - **fail** — Errors found. Check `errors[]` for classified issues.
-- **error** — Tool/infrastructure failure (not a workflow bug). Common: missing `metadata.id`.
+- **error** — Tool/infrastructure failure (not a workflow bug).
 - **skipped** — Guardrails refused. Read `guardrailActions[]` for explanation.
+
+Note: if `metadata.id` is missing when calling `test`, the response is an error envelope (`success: false`, `type: 'precondition_error'`), not a diagnostic summary.
 
 ### Error classifications
 

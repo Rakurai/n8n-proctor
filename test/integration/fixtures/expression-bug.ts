@@ -24,7 +24,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
     id: 'XSpcho6Ex2B9zyCb',
     name: 'n8n-vet-test--expression-bug',
     active: false,
-    settings: { executionOrder: 'v1', callerPolicy: 'workflowsFromSameOwner', availableInMCP: true },
+    settings: { executionOrder: 'v1', callerPolicy: 'workflowsFromSameOwner', availableInMCP: false },
 })
 export class N8nVetTestExpressionBugWorkflow {
     // =====================================================================
@@ -52,7 +52,7 @@ export class N8nVetTestExpressionBugWorkflow {
             assignments: [
                 {
                     name: 'value',
-                    value: '={{ $json.nonexistent.deep.path }}',
+                    value: '={{ JSON.parse("{invalid") }}',
                     type: 'string',
                 },
             ],

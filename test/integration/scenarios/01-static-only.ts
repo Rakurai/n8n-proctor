@@ -10,7 +10,7 @@
 import { resolve, join } from 'node:path';
 import { interpret } from '../../../src/orchestrator/interpret.js';
 import { buildTestDeps } from '../lib/deps.js';
-import { assertStatus, assertFindingPresent } from '../lib/assertions.js';
+import { assertStatus, assertFindingPresent, assertFindingOnNode, assertEvidenceBasis } from '../lib/assertions.js';
 import type { IntegrationContext } from '../lib/setup.js';
 import type { Scenario } from '../run.js';
 
@@ -32,6 +32,18 @@ async function run(ctx: IntegrationContext): Promise<void> {
 
   assertStatus(result1, 'fail');
   assertFindingPresent(result1, 'wiring');
+  assertEvidenceBasis(result1, 'static');
+
+  // The wiring error should be attributed to the node with the broken reference
+  const wiringError = result1.errors.find(e => e.classification === 'wiring');
+  if (!wiringError?.node) {
+    throw new Error('Expected wiring error to have a node attribution');
+  }
+
+  // Capabilities should report no MCP tools for static-only
+  if (result1.capabilities.mcpTools !== false) {
+    throw new Error('Expected capabilities.mcpTools to be false for static-only validation');
+  }
 
   if (result1.executedPath !== null) {
     throw new Error('Expected executedPath to be null for static-only validation');
@@ -51,6 +63,7 @@ async function run(ctx: IntegrationContext): Promise<void> {
   );
 
   assertStatus(result2, 'pass');
+  assertEvidenceBasis(result2, 'static');
 
   if (result2.executedPath !== null) {
     throw new Error('Expected executedPath to be null for static-only validation');

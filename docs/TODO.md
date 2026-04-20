@@ -29,8 +29,6 @@ Depends on confirming whole-workflow execution as the permanent model. Design in
 
 ### Test Coverage Gaps
 
-- **Pin data construction / caching** — No integration scenario exercises `prepare_test_pin_data` or pin data cache persistence. Add a scenario that pins upstream data and validates the agent node receives it.
-
 - **Expression error classification** — No scenario exercises the expression-error diagnostic path end-to-end. The `expression-bug` fixture exists but only tests static analysis. Add a scenario that triggers execution with expression errors and validates the diagnostic classifies them correctly.
 
 - **Guardrail narrowing** — No scenario specifically tests the guardrail *narrowing* behavior where a `both` request is redirected to `static` because changes are structurally analyzable. Currently bypassed with `force: true` in execution scenarios.

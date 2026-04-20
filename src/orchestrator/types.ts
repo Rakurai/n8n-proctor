@@ -131,6 +131,7 @@ export interface OrchestratorDeps {
     trustedBoundaries: NodeIdentity[],
     fixtures?: Record<string, PinDataItem[]>,
     priorArtifacts?: Record<string, PinDataItem[]>,
+    mcpPinData?: Record<string, PinDataItem[]>,
   ) => PinDataResult;
 
   // Diagnostics

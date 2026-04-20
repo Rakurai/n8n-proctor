@@ -28,15 +28,13 @@ import type { PinData, PinDataItem, PinDataResult, PinDataSourceMap } from './ty
  * Determines which nodes need pin data (trusted boundary nodes at the edge
  * of the execution scope), then sources data for each from the highest
  * available tier.
- *
- * Tier 3 (execution history via MCP) is skipped when no MCP client is
- * available — unresolved nodes proceed directly to tier 4 (error).
  */
 export function constructPinData(
   _graph: WorkflowGraph,
   trustedBoundaries: NodeIdentity[],
   fixtures?: Record<string, PinDataItem[]>,
   priorArtifacts?: Record<string, PinDataItem[]>,
+  mcpPinData?: Record<string, PinDataItem[]>,
 ): PinDataResult {
   const pinData: PinData = {};
   const sourceMap: PinDataSourceMap = {};
@@ -59,8 +57,12 @@ export function constructPinData(
       continue;
     }
 
-    // Tier 3: Execution history (MCP) — skipped when MCP unavailable
-    // MCP client integration added after US3 (T019).
+    // Tier 3: MCP-sourced pin data (from prepare_test_pin_data schemas)
+    if (mcpPinData && nodeName in mcpPinData) {
+      pinData[nodeName] = normalizePinData(mcpPinData[nodeName] ?? []);
+      sourceMap[nodeName] = 'mcp-schema';
+      continue;
+    }
 
     // Tier 4: Error — collect missing
     missingNodes.push(nodeName);
@@ -156,4 +158,51 @@ export async function writeCachedPinData(
   await mkdir(dir, { recursive: true });
   const path = join(dir, `${nodeContentHash}.json`);
   await writeFile(path, JSON.stringify(items, null, 2), 'utf-8');
+}
+
+// ---------------------------------------------------------------------------
+// Schema-to-sample generation (tier 3 support)
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a minimal sample object from a JSON Schema.
+ *
+ * Produces the simplest valid instance for each property type. Used by the
+ * orchestrator to convert MCP `prepare_test_pin_data` schemas into usable
+ * pin data for tier 3 sourcing.
+ */
+export function generateSampleFromSchema(
+  schema: Record<string, unknown>,
+): Record<string, unknown> {
+  if (schema.type === 'object' && typeof schema.properties === 'object' && schema.properties) {
+    const obj: Record<string, unknown> = {};
+    for (const [key, propSchema] of Object.entries(
+      schema.properties as Record<string, Record<string, unknown>>,
+    )) {
+      obj[key] = generateSampleValue(propSchema);
+    }
+    return obj;
+  }
+  // Non-object schema or no properties — return empty object
+  return {};
+}
+
+function generateSampleValue(schema: Record<string, unknown>): unknown {
+  switch (schema.type) {
+    case 'string':
+      return '';
+    case 'number':
+    case 'integer':
+      return 0;
+    case 'boolean':
+      return false;
+    case 'array':
+      return [];
+    case 'object':
+      return generateSampleFromSchema(schema);
+    case 'null':
+      return null;
+    default:
+      return null;
+  }
 }

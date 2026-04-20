@@ -13,7 +13,7 @@ import { resolve, join } from 'node:path';
 import { interpret } from '../../../src/orchestrator/interpret.js';
 import { buildTrustStatusReport } from '../../../src/surface.js';
 import { buildTestDeps } from '../lib/deps.js';
-import { assertStatus, assertNoFindings, assertTrusted } from '../lib/assertions.js';
+import { assertStatus, assertNoFindings, assertTrusted, assertEvidenceBasis, assertExecutedPathOrder } from '../lib/assertions.js';
 import type { IntegrationContext } from '../lib/setup.js';
 import type { Scenario } from '../run.js';
 
@@ -38,8 +38,12 @@ async function run(ctx: IntegrationContext): Promise<void> {
 
   if (ctx.callTool) {
     // With MCP: execution should have produced an executedPath
-    if (result.executedPath === null) {
-      throw new Error('Expected executedPath to be non-null when callTool is provided');
+    assertEvidenceBasis(result, 'execution');
+    assertExecutedPathOrder(result, ['Trigger', 'Set', 'NoOp']);
+
+    // Execution metadata should be populated
+    if (!result.meta.executionId || result.meta.executionId.length === 0) {
+      throw new Error('Expected meta.executionId to be a non-empty string');
     }
 
     // Capabilities should report MCP tools available
@@ -48,6 +52,7 @@ async function run(ctx: IntegrationContext): Promise<void> {
     }
   } else {
     // Without MCP: execution skipped gracefully
+    assertEvidenceBasis(result, 'static');
     if (result.executedPath !== null) {
       throw new Error('Expected executedPath to be null when no callTool is provided');
     }

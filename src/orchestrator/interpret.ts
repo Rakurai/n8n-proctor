@@ -2,16 +2,17 @@
  * The 10-step orchestration pipeline — receives a ValidationRequest and
  * coordinates all five internal subsystems to produce a DiagnosticSummary.
  *
- * Never throws for foreseeable failures; returns status:'error' diagnostics.
- * Only programming bugs (assertion failures) propagate as thrown errors.
+ * Throws ExecutionPreconditionError for precondition failures (e.g. missing
+ * metadata.id) — callers must map these to error envelopes at the boundary.
  */
 
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import stringify from 'json-stable-stringify';
 import type { ExecutionData } from '../diagnostics/types.js';
-import { getExecution } from '../execution/mcp-client.js';
-import { readCachedPinData, writeCachedPinData } from '../execution/pin-data.js';
+import { ExecutionPreconditionError } from '../execution/errors.js';
+import { getExecution, preparePinData } from '../execution/mcp-client.js';
+import { generateSampleFromSchema, readCachedPinData, writeCachedPinData } from '../execution/pin-data.js';
 import type { PinData, PinDataItem } from '../execution/types.js';
 import type { EvaluationInput } from '../guardrails/types.js';
 import type { StaticFinding } from '../static-analysis/types.js';
@@ -37,7 +38,9 @@ import {
 /**
  * Interpret a validation request — the single public entry point for the orchestrator.
  *
- * Always returns a DiagnosticSummary. Never throws for user-facing errors.
+ * Returns a DiagnosticSummary for most cases. Throws domain errors
+ * (ExecutionPreconditionError) for precondition failures that require
+ * agent action — these propagate to the MCP/CLI boundary for envelope mapping.
  */
 export async function interpret(
   request: ValidationRequest,
@@ -164,77 +167,117 @@ export async function interpret(
     type: string;
     message: string;
     description: null;
-    node: null;
+    node: NodeIdentity | null;
     classification: 'platform';
     context: Record<string, never>;
   }[] = [];
   if (request.tool === 'test') {
     if (!n8nWorkflowId) {
-      executionErrors.push({
-        type: 'OrchestratorError',
-        message:
-          'Cannot run execution validation: missing metadata.id in workflow file. Run n8nac push first to populate the workflow ID.',
-        description: null,
-        node: null,
-        classification: 'platform',
-        context: {},
-      });
-    } else {
-      try {
-        const detected = await deps.detectCapabilities(
-          request.callTool ? { callTool: request.callTool } : undefined,
-        );
-        capabilities.mcpTools = detected.mcpAvailable;
+      throw new ExecutionPreconditionError(
+        'workflow-not-found',
+        'Cannot run execution validation: missing metadata.id in workflow file. Run n8nac push first to populate the workflow ID.',
+      );
+    }
+    try {
+      const detected = await deps.detectCapabilities(
+        request.callTool ? { callTool: request.callTool } : undefined,
+      );
+      capabilities.mcpTools = detected.mcpAvailable;
 
-        if (detected.mcpAvailable && request.callTool) {
-          const trustedBoundaries = resolvedTarget.nodes.filter((n) => activeTrust.nodes.has(n));
-          // Load cached pin data as prior artifacts (tier 2)
-          const priorArtifacts: Record<string, PinDataItem[]> = {};
-          const nodeHashes = computeCurrentHashes(graph, trustedBoundaries);
-          for (const boundary of trustedBoundaries) {
-            const hash = nodeHashes.get(boundary);
-            if (hash) {
-              const cached = await readCachedPinData(workflowId, hash);
-              if (cached) priorArtifacts[boundary as string] = cached;
-            }
-          }
-
-          const pinDataResult = deps.constructPinData(
-            graph,
-            trustedBoundaries,
-            request.pinData as Record<string, PinDataItem[]> | undefined,
-            Object.keys(priorArtifacts).length > 0 ? priorArtifacts : undefined,
-          );
-          usedPinData = pinDataResult.pinData;
-
-          const execResult = await deps.executeSmoke(
-            n8nWorkflowId,
-            pinDataResult.pinData,
-            request.callTool,
-          );
-
-          executionId = execResult.executionId;
-
-          // Retrieve execution data via MCP
-          if (execResult.executionId) {
-            const mcpResult = await getExecution(
-              n8nWorkflowId,
-              execResult.executionId,
-              request.callTool,
-              { includeData: true },
-            );
-            if (mcpResult.data) {
-              executionData = mcpResult.data;
-            }
+      if (detected.mcpAvailable && request.callTool) {
+        const allTrusted = resolvedTarget.nodes.filter((n) => activeTrust.nodes.has(n));
+        // Only pin nodes that are boundaries between trusted and untrusted regions.
+        // If all target nodes are trusted, execute normally without pinning.
+        const untrustedNodes = resolvedTarget.nodes.filter((n) => !activeTrust.nodes.has(n));
+        const trustedBoundaries =
+          untrustedNodes.length === 0
+            ? [] // All trusted — execute full workflow, no pinning needed
+            : allTrusted.filter((n) => {
+                // A trusted node is a boundary if it has an edge to an untrusted node
+                const forward = graph.forward.get(n);
+                return forward?.some((e) => !activeTrust.nodes.has(e.to)) ?? false;
+              });
+        // Load cached pin data as prior artifacts (tier 2)
+        const priorArtifacts: Record<string, PinDataItem[]> = {};
+        const nodeHashes = computeCurrentHashes(graph, trustedBoundaries);
+        for (const boundary of trustedBoundaries) {
+          const hash = nodeHashes.get(boundary);
+          if (hash) {
+            const cached = await readCachedPinData(workflowId, hash);
+            if (cached) priorArtifacts[boundary as string] = cached;
           }
         }
-      } catch (err) {
-        return errorDiagnostic(
-          `Execution failed: ${err instanceof Error ? err.message : String(err)}`,
-          runId,
-          startTime,
+
+        // Tier 3: MCP-sourced pin data from prepare_test_pin_data schemas
+        let mcpPinData: Record<string, PinDataItem[]> | undefined;
+        if (trustedBoundaries.length > 0) {
+          try {
+            const prepared = await preparePinData(n8nWorkflowId, request.callTool);
+            mcpPinData = {};
+            for (const boundary of trustedBoundaries) {
+              const nodeName = boundary as string;
+              if (nodeName in prepared.nodeSchemasToGenerate) {
+                const schema = prepared.nodeSchemasToGenerate[nodeName] as Record<string, unknown>;
+                mcpPinData[nodeName] = [{ json: generateSampleFromSchema(schema) }];
+              } else if (prepared.nodesSkipped.includes(nodeName)) {
+                // Node doesn't need pin data (logic node) — provide empty pin data
+                mcpPinData[nodeName] = [{ json: {} }];
+              } else if (prepared.nodesWithoutSchema.includes(nodeName)) {
+                mcpPinData[nodeName] = [{ json: {} }];
+              }
+            }
+          } catch {
+            // MCP tier-3 failure is non-fatal — fall through to tier 4
+          }
+        }
+
+        const pinDataResult = deps.constructPinData(
+          graph,
+          trustedBoundaries,
+          request.pinData as Record<string, PinDataItem[]> | undefined,
+          Object.keys(priorArtifacts).length > 0 ? priorArtifacts : undefined,
+          mcpPinData && Object.keys(mcpPinData).length > 0 ? mcpPinData : undefined,
         );
+        usedPinData = pinDataResult.pinData;
+
+        const execResult = await deps.executeSmoke(
+          n8nWorkflowId,
+          pinDataResult.pinData,
+          request.callTool,
+        );
+
+        if (execResult.error) {
+          executionErrors.push({
+            type: execResult.error.type,
+            message: execResult.error.message,
+            description: null,
+            node: (execResult.error.node as NodeIdentity | null),
+            classification: 'platform',
+            context: {},
+          });
+        }
+
+        executionId = execResult.executionId;
+
+        // Retrieve execution data via MCP
+        if (execResult.executionId) {
+          const mcpResult = await getExecution(
+            n8nWorkflowId,
+            execResult.executionId,
+            request.callTool,
+            { includeData: true },
+          );
+          if (mcpResult.data) {
+            executionData = mcpResult.data;
+          }
+        }
       }
+    } catch (err) {
+      return errorDiagnostic(
+        `Execution failed: ${err instanceof Error ? err.message : String(err)}`,
+        runId,
+        startTime,
+      );
     }
   }
 

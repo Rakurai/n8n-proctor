@@ -121,15 +121,10 @@ export async function ensureMcpAccess(
   const state = readState(fixturesDir);
   if (state.mcpAccessVerified) return;
 
-  // Sample the first workflow — if MCP access is already set, n8nac preserved
-  // the flag and we can skip the REST API workaround entirely.
-  const alreadyEnabled = await hasMcpAccess(host, apiKey, ids[0]);
-
-  if (!alreadyEnabled) {
-    // n8nac stripped the flag — re-enable on all workflows
-    for (const id of ids) {
-      await forceEnableMcpAccess(host, apiKey, id);
-    }
+  // Check every workflow — a reseed can leave individual workflows with the
+  // flag stripped even when others still have it. Sampling one is not enough.
+  for (const id of ids) {
+    await forceEnableMcpAccess(host, apiKey, id);
   }
 
   // Persist so subsequent runs skip the check

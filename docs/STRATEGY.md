@@ -115,7 +115,7 @@ Execution-backed testing is a separate operation from validation. It is justifie
 
 **Implication.** The product provides a separate `test` tool for execution. It should prefer bounded execution over whole-workflow execution, mocked or pinned execution over live external behavior where possible, and static pre-flight checks before paying execution cost.
 
-**v0.1.0 execution scoping.** Execution is scoped through pin data placement: placing pin data at trusted boundaries prevents those nodes from re-executing, effectively limiting execution to the unpinned (changed) region of the graph. The MCP `test_workflow` tool is the sole execution trigger; it initiates a full workflow run whose effective scope is controlled by which nodes carry pinned data.
+**v0.1.0 execution scoping.** Execution is scoped through pin data placement: placing pin data at trusted boundaries prevents those nodes from re-executing, effectively limiting execution to the unpinned (changed) region of the graph. The MCP `test_workflow` tool is the sole execution trigger; it initiates a full workflow run whose effective scope is controlled by which nodes carry pinned data. Pin data for trusted boundaries is sourced from a 4-tier priority: agent fixtures, cached prior artifacts, MCP `prepare_test_pin_data` schemas, or error. When all target nodes are trusted (e.g. validate→test lifecycle), no pinning is applied and the workflow executes normally.
 
 ---
 

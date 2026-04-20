@@ -133,7 +133,7 @@ const FIXTURES: Record<string, WorkflowCreatePayload> = {
     name: `${PREFIX}expression-bug`,
     nodes: [
       trigger('t1', 'Trigger', [100, 200]),
-      setNode('s1', 'Bad Expression', [300, 200], [{ name: 'value', value: '={{ $json.nonexistent.deep.path }}', type: 'string' }]),
+      setNode('s1', 'Bad Expression', [300, 200], [{ name: 'value', value: '={{ JSON.parse("{invalid") }}', type: 'string' }]),
     ],
     connections: {
       Trigger: { main: [[conn('Bad Expression')]] },

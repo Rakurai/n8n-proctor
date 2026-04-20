@@ -1,8 +1,9 @@
 /**
  * Scenario 07: MCP tools round-trip
  *
- * Spawns the MCP server, tests all 3 tools (validate, trust_status, explain)
- * with valid and invalid input.
+ * Spawns the MCP server, tests all 4 tools (validate, test, trust_status, explain)
+ * with valid and invalid input. The `test` tool is exercised both for the
+ * "test before push" precondition_error path (no metadata.id) and for valid input.
  */
 
 import { resolve, join } from 'node:path';
@@ -94,9 +95,51 @@ async function run(ctx: IntegrationContext): Promise<void> {
       throw new Error('explain tool should have failed for nonexistent file');
     }
     if (!invalidExplainResult.error) {
-      throw new Error(
-        `Expected explain error, got none`,
-      );
+      throw new Error('Expected explain error, got none');
+    }
+    // Assert the error type string
+    if (invalidExplainResult.error.type !== 'workflow_not_found' && invalidExplainResult.error.type !== 'parse_error') {
+      throw new Error(`Expected error type 'workflow_not_found' or 'parse_error', got '${invalidExplainResult.error.type}'`);
+    }
+
+    // Test 7: test tool via MCP transport — exercises the test handler (R4)
+    // Without MCP execution capability the server returns a diagnostic with status 'error'
+    const testResult = await client.test({
+      workflowPath: happyPath,
+      kind: 'workflow',
+      force: true,
+    });
+
+    if (!testResult.success) {
+      throw new Error(`test tool MCP transport failed unexpectedly: ${JSON.stringify(testResult.error)}`);
+    }
+    // interpret handles execution errors internally → returns success envelope with diagnostic
+    const testData = testResult.data as { status?: string };
+    if (!testData?.status) {
+      throw new Error('Expected test tool to return diagnostic with status');
+    }
+    // Without MCP connection the test tool gracefully returns an error diagnostic
+    // (status either 'pass', 'fail', or 'error' — all are valid diagnostics)
+
+    // Test 8: test tool on no-id fixture — "test before push" → precondition_error envelope (SP2)
+    const noIdPath = resolve(join(ctx.fixturesDir, 'no-id.ts'));
+    const noIdResult = await client.test({
+      workflowPath: noIdPath,
+      kind: 'workflow',
+      force: true,
+    });
+
+    if (noIdResult.success) {
+      throw new Error(`Expected test on no-id fixture to return success:false with precondition_error, got success:true`);
+    }
+    if (!noIdResult.error) {
+      throw new Error('Expected error envelope, got none');
+    }
+    if (noIdResult.error.type !== 'precondition_error') {
+      throw new Error(`Expected error type 'precondition_error', got '${noIdResult.error.type}'`);
+    }
+    if (!noIdResult.error.message.includes('metadata.id')) {
+      throw new Error(`Expected error message to mention 'metadata.id', got: '${noIdResult.error.message}'`);
     }
   } finally {
     if (client) await client.close();

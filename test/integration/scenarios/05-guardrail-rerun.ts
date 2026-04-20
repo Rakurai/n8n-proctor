@@ -33,7 +33,7 @@ async function run(ctx: IntegrationContext): Promise<void> {
 
   assertStatus(result1, 'pass');
 
-  // Step 2: Validate again unchanged — guardrail should fire
+  // Step 2: Validate again unchanged — guardrail should warn (broad-target at 100%)
   const result2 = await interpret(
     {
       workflowPath: happyPath,
@@ -45,13 +45,28 @@ async function run(ctx: IntegrationContext): Promise<void> {
     deps,
   );
 
+  // The guardrail fires: broad-target check triggers before identical-rerun
+  // because all nodes are trusted (100% coverage). Assert the specific action.
   const guardrailAction = result2.guardrailActions.find(
-    d => d.action === 'refuse' || d.action === 'narrow' || d.action === 'warn',
+    d => d.action === 'warn',
   );
-
   if (!guardrailAction) {
     throw new Error(
-      `Expected guardrail to fire on unchanged rerun, got actions: [${result2.guardrailActions.map(d => d.action).join(', ')}]`,
+      `Expected guardrail action 'warn', got actions: [${result2.guardrailActions.map(d => `${d.action}: ${d.explanation}`).join('; ')}]`,
+    );
+  }
+
+  // The explanation must tell the agent *why* — proving the guardrail communicates
+  if (!guardrailAction.explanation || guardrailAction.explanation.length === 0) {
+    throw new Error('Expected guardrail explanation to be non-empty');
+  }
+  // Broad-target warn explains that coverage is high — assert meaningful content
+  const explanationLower = guardrailAction.explanation.toLowerCase();
+  const mentionsCoverage = explanationLower.includes('100%') || explanationLower.includes('narrowing')
+    || explanationLower.includes('trusted') || explanationLower.includes('broad');
+  if (!mentionsCoverage) {
+    throw new Error(
+      `Expected guardrail explanation to mention coverage/narrowing/trusted/broad, got: "${guardrailAction.explanation}"`,
     );
   }
 

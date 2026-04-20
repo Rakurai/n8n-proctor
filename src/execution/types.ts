@@ -23,7 +23,7 @@ export interface PinDataItem {
 }
 
 /** Which sourcing tier provided pin data for a given node. */
-export type PinDataSource = 'agent-fixture' | 'prior-artifact' | 'execution-history';
+export type PinDataSource = 'agent-fixture' | 'prior-artifact' | 'mcp-schema' | 'execution-history';
 
 /** Traceability map: node name → which tier provided its pin data. */
 export type PinDataSourceMap = Record<string, PinDataSource>;
