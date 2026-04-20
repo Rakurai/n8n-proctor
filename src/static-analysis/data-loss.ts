@@ -83,7 +83,7 @@ function handleImplicitReference(
   findings: StaticFinding[],
   schemaProvider?: NodeSchemaProvider,
 ): void {
-  walkBackward(ref.node, ref, graph, findings, new Set<NodeIdentity>(), schemaProvider);
+  walkBackward(ref.node, ref, graph, findings, new Set<NodeIdentity>(), schemaProvider, true);
 }
 
 function walkBackward(
@@ -93,6 +93,7 @@ function walkBackward(
   findings: StaticFinding[],
   visited: Set<NodeIdentity>,
   schemaProvider?: NodeSchemaProvider,
+  isDirectPredecessor = false,
 ): void {
   if (visited.has(currentNode)) return;
   visited.add(currentNode);
@@ -107,7 +108,7 @@ function walkBackward(
     switch (pred.classification) {
       case 'shape-preserving':
       case 'shape-augmenting':
-        walkBackward(edge.from, ref, graph, findings, visited, schemaProvider);
+        walkBackward(edge.from, ref, graph, findings, visited, schemaProvider, false);
         break;
 
       case 'shape-opaque':
@@ -123,6 +124,10 @@ function walkBackward(
         break;
 
       case 'shape-replacing':
+        if (isDirectPredecessor) {
+          // Immediate predecessor: $json reads THIS node's output — no data loss.
+          break;
+        }
         if (isFirstDataSource(edge.from, graph)) {
           // Origin of data, not replacing someone else's output — no finding.
         } else {

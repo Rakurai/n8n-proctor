@@ -93,6 +93,50 @@ describe('detectDataLoss', () => {
     expect(dataLossFindings.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('does not flag direct predecessor that is shape-replacing', () => {
+    // $json reads from the immediate predecessor — no data loss even if it replaces shape
+    const graph = makeGraph([
+      {
+        name: 'trigger',
+        displayName: 'Trigger',
+        type: 'n8n-nodes-base.scheduleTrigger',
+        classification: 'shape-replacing',
+      },
+      {
+        name: 'apiNode',
+        displayName: 'API Node',
+        type: 'n8n-nodes-base.httpRequest',
+        classification: 'shape-replacing',
+        predecessors: ['trigger'],
+      },
+      {
+        name: 'setNode',
+        displayName: 'Set Node',
+        type: 'n8n-nodes-base.set',
+        classification: 'shape-augmenting',
+        predecessors: ['apiNode'],
+      },
+    ]);
+
+    const ref: ExpressionReference = {
+      node: nodeIdentity('setNode'),
+      parameter: 'value',
+      raw: '={{ $json.data }}',
+      referencedNode: null,
+      fieldPath: 'data',
+      resolved: true,
+    };
+
+    const findings = detectDataLoss(
+      graph,
+      [ref],
+      [nodeIdentity('setNode')],
+    );
+
+    const dataLossFindings = findings.filter((f) => f.kind === 'data-loss');
+    expect(dataLossFindings).toHaveLength(0);
+  });
+
   it('does not flag first data source (trigger with no predecessors)', () => {
     const graph = makeGraph([
       {
@@ -245,6 +289,7 @@ describe('detectDataLoss', () => {
   });
 
   it('downgrades data-loss to warning when schema contains the field', () => {
+    // apiNode is NOT the direct predecessor — ifNode sits between them
     const graph = makeGraph([
       {
         name: 'trigger',
@@ -260,11 +305,18 @@ describe('detectDataLoss', () => {
         predecessors: ['trigger'],
       },
       {
+        name: 'ifNode',
+        displayName: 'If',
+        type: 'n8n-nodes-base.if',
+        classification: 'shape-preserving',
+        predecessors: ['apiNode'],
+      },
+      {
         name: 'setNode',
         displayName: 'Set Node',
         type: 'n8n-nodes-base.set',
         classification: 'shape-augmenting',
-        predecessors: ['apiNode'],
+        predecessors: ['ifNode'],
       },
     ]);
 
@@ -299,6 +351,7 @@ describe('detectDataLoss', () => {
   });
 
   it('keeps data-loss as error when schema does not contain the field', () => {
+    // apiNode is NOT the direct predecessor — ifNode sits between them
     const graph = makeGraph([
       {
         name: 'trigger',
@@ -314,11 +367,18 @@ describe('detectDataLoss', () => {
         predecessors: ['trigger'],
       },
       {
+        name: 'ifNode',
+        displayName: 'If',
+        type: 'n8n-nodes-base.if',
+        classification: 'shape-preserving',
+        predecessors: ['apiNode'],
+      },
+      {
         name: 'setNode',
         displayName: 'Set Node',
         type: 'n8n-nodes-base.set',
         classification: 'shape-augmenting',
-        predecessors: ['apiNode'],
+        predecessors: ['ifNode'],
       },
     ]);
 
