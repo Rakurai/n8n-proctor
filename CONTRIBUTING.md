@@ -24,10 +24,16 @@ npm run build
 | `npm test` | Run unit tests (vitest) |
 | `npm run test:watch` | Watch mode |
 | `npm run test:integration` | Integration tests against live n8n |
+| `npm run test:integration -- --scenario 02` | Single scenario |
+| `npm run test:integration -- --verbose` | With diagnostic output |
+| `npm run test:integ:check` | Check integration prerequisites |
+| `npm run test:integ:seed` | Reseed test fixtures on n8n |
 | `npm run typecheck` | Type-check without emitting |
 | `npm run lint` | Lint with Biome |
 | `npm run lint:fix` | Auto-fix lint issues |
 | `npm run format` | Format with Biome |
+
+Integration scripts use `dotenv-cli` to load `.env` automatically.
 
 ## Environment Variables
 
@@ -74,19 +80,10 @@ n8nac instance add --yes --host $N8N_HOST --api-key $N8N_API_KEY --project-index
 
 # 3. Seed test workflows on n8n
 npm run build
-npx tsx test/integration/seed.ts
+npm run test:integ:seed
 
 # 4. Commit the fixtures (they're static git-distributed artifacts)
 git add test/integration/fixtures/
-```
-
-### Running
-
-```sh
-npm run test:integration              # All 9 scenarios
-npx tsx test/integration/run.ts --scenario 02   # Single scenario
-npx tsx test/integration/run.ts --verbose        # With diagnostic output
-npx tsx test/integration/run.ts --check          # Prerequisites only
 ```
 
 ### Adding a New Fixture

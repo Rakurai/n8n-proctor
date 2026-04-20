@@ -25,7 +25,9 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "test:integration": "tsx test/integration/run.ts",
+    "test:integration": "dotenv -- tsx test/integration/run.ts",
+    "test:integ:check": "dotenv -- tsx test/integration/run.ts --check",
+    "test:integ:seed": "dotenv -- tsx test/integration/seed.ts",
     "test:watch": "vitest",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
@@ -52,6 +54,7 @@
     "@biomejs/biome": "^1.9.0",
     "@types/json-stable-stringify": "^1.1.0",
     "@types/node": "^25.6.0",
+    "dotenv-cli": "^11.0.0",
     "tsx": "^4.21.0",
     "typescript": "^5.7.0",
     "vitest": "^3.1.0"
