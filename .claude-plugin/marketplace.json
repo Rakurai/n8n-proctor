@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "n8n-vet",
-      "source": ".",
+      "source": "./",
       "description": "Guardrailed validation control for agent-built n8n workflows"
     }
   ]

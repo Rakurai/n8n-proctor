@@ -10,11 +10,15 @@
   "keywords": ["n8n", "workflow", "validation", "testing", "mcp"],
   "userConfig": {
     "n8n_host": {
+      "title": "n8n Host",
       "description": "n8n instance URL (e.g. http://localhost:5678)",
+      "type": "string",
       "sensitive": false
     },
     "n8n_api_key": {
+      "title": "n8n API Key",
       "description": "n8n API key for execution-backed validation",
+      "type": "string",
       "sensitive": true
     }
   }
