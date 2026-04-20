@@ -61,7 +61,7 @@ function annotateNode(
   return {
     node,
     status: 'skipped',
-    reason: 'Outside validation scope',
+    reason: 'No static findings — node may be opaque to analysis',
   };
 }
 
