@@ -53,10 +53,6 @@ export interface ValidationRequest {
   force: boolean;
   pinData: PinData | null;
   callTool?: McpToolCaller;
-  /** n8n host URL — needed by the availableInMCP pre-flight fix. */
-  n8nHost?: string;
-  /** n8n REST API key — needed by the availableInMCP pre-flight fix. */
-  n8nApiKey?: string;
 }
 
 // ── InterpretedRequest ────────────────────────────────────────────
@@ -71,15 +67,16 @@ export interface InterpretedRequest {
   trustState: TrustState;
 }
 
-// ── OrchestratorDeps ──────────────────────────────────────────────
+// ── Subsystem Contracts ──────────────────────────────────────────
 
-/** Dependency injection object — all subsystem calls are injected for testability. */
-export interface OrchestratorDeps {
-  // Workflow parsing
+/** Workflow parsing — AST production and graph construction. */
+export interface ParsingDeps {
   parseWorkflowFile: (path: string) => Promise<WorkflowAST>;
   buildGraph: (ast: WorkflowAST) => WorkflowGraph;
+}
 
-  // Trust
+/** Trust state — loading, persistence, change detection, invalidation, recording. */
+export interface TrustDeps {
   loadTrustState: (workflowId: string) => TrustState;
   persistTrustState: (state: TrustState, workflowHash: string) => void;
   computeChangeSet: (previous: WorkflowGraph, current: WorkflowGraph) => NodeChangeSet;
@@ -96,11 +93,15 @@ export interface OrchestratorDeps {
     runId: string,
     fixtureHash: string | null,
   ) => TrustState;
+}
 
-  // Guardrails
+/** Guardrails — evaluate whether to proceed, narrow, redirect, or refuse. */
+export interface GuardrailDeps {
   evaluate: (input: EvaluationInput) => GuardrailDecision;
+}
 
-  // Static analysis
+/** Static analysis — expression tracing, data-loss detection, schema checks, param validation. */
+export interface AnalysisDeps {
   traceExpressions: (graph: WorkflowGraph, nodes: NodeIdentity[]) => ExpressionReference[];
   detectDataLoss: (
     graph: WorkflowGraph,
@@ -118,8 +119,10 @@ export interface OrchestratorDeps {
     nodes: NodeIdentity[],
     provider?: NodeSchemaProvider,
   ) => StaticFinding[];
+}
 
-  // Execution
+/** Execution — smoke execution, pin data construction, capability detection. */
+export interface ExecutionDeps {
   executeSmoke: (
     workflowId: string,
     pinData: PinData,
@@ -133,18 +136,33 @@ export interface OrchestratorDeps {
     priorArtifacts?: Record<string, PinDataItem[]>,
     mcpPinData?: Record<string, PinDataItem[]>,
   ) => PinDataResult;
-
-  // Diagnostics
-  synthesize: (input: SynthesisInput) => DiagnosticSummary;
-
-  // Snapshots
-  loadSnapshot: (workflowId: string) => WorkflowGraph | null;
-  saveSnapshot: (workflowId: string, graph: WorkflowGraph) => void;
-
-  // Capability detection
   detectCapabilities: (options?: {
     callTool?: McpToolCaller;
   }) => Promise<DetectedCapabilities>;
+}
+
+/** Diagnostics — synthesis of static + execution results into summaries. */
+export interface DiagnosticsDeps {
+  synthesize: (input: SynthesisInput) => DiagnosticSummary;
+}
+
+/** Snapshots — workflow graph persistence for change detection. */
+export interface SnapshotDeps {
+  loadSnapshot: (workflowId: string) => WorkflowGraph | null;
+  saveSnapshot: (workflowId: string, graph: WorkflowGraph) => void;
+}
+
+// ── OrchestratorDeps ──────────────────────────────────────────────
+
+/** Grouped dependency injection — all subsystem contracts composed for the orchestrator. */
+export interface OrchestratorDeps {
+  parsing: ParsingDeps;
+  trust: TrustDeps;
+  guardrails: GuardrailDeps;
+  analysis: AnalysisDeps;
+  execution: ExecutionDeps;
+  diagnostics: DiagnosticsDeps;
+  snapshots: SnapshotDeps;
 }
 
 // ── WorkflowSnapshot ──────────────────────────────────────────────

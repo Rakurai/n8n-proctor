@@ -114,7 +114,9 @@ function passSummary(): DiagnosticSummary {
 
 // ── Mock deps ─────────────────────────────────────────────────────
 
-function createMockDeps(overrides?: Partial<OrchestratorDeps>): OrchestratorDeps {
+type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? Partial<T[K]> : T[K] };
+
+function createMockDeps(overrides?: DeepPartial<OrchestratorDeps>): OrchestratorDeps {
   const graph = makeGraph(
     ['trigger', 'httpReq'],
     [['trigger', 'httpReq']],
@@ -128,30 +130,50 @@ function createMockDeps(overrides?: Partial<OrchestratorDeps>): OrchestratorDeps
   };
 
   return {
-    parseWorkflowFile: vi.fn().mockResolvedValue(graph.ast),
-    buildGraph: vi.fn().mockReturnValue(graph),
-    loadTrustState: vi.fn().mockReturnValue(emptyTrustState()),
-    persistTrustState: vi.fn(),
-    computeChangeSet: vi.fn().mockReturnValue(changeSet),
-    invalidateTrust: vi.fn().mockImplementation((state) => state),
-    recordValidation: vi.fn().mockImplementation((state) => state),
-    evaluate: vi.fn().mockReturnValue(proceedDecision()),
-    traceExpressions: vi.fn().mockReturnValue([]),
-    detectDataLoss: vi.fn().mockReturnValue([]),
-    checkSchemas: vi.fn().mockReturnValue([]),
-    validateNodeParams: vi.fn().mockReturnValue([]),
-    executeSmoke: vi.fn().mockResolvedValue({ executionId: 'exec-1', status: 'success', error: null }),
-    constructPinData: vi.fn().mockReturnValue({ pinData: {}, sourceMap: {} }),
-    synthesize: vi.fn().mockReturnValue(passSummary()),
-    loadSnapshot: vi.fn().mockReturnValue(graph),
-    saveSnapshot: vi.fn(),
-    detectCapabilities: vi.fn().mockResolvedValue({
-      level: 'mcp',
-      mcpAvailable: false,
-      mcpTools: [],
-    }),
-    ...overrides,
-  };
+    parsing: {
+      parseWorkflowFile: vi.fn().mockResolvedValue(graph.ast),
+      buildGraph: vi.fn().mockReturnValue(graph),
+      ...overrides?.parsing,
+    },
+    trust: {
+      loadTrustState: vi.fn().mockReturnValue(emptyTrustState()),
+      persistTrustState: vi.fn(),
+      computeChangeSet: vi.fn().mockReturnValue(changeSet),
+      invalidateTrust: vi.fn().mockImplementation((state) => state),
+      recordValidation: vi.fn().mockImplementation((state) => state),
+      ...overrides?.trust,
+    },
+    guardrails: {
+      evaluate: vi.fn().mockReturnValue(proceedDecision()),
+      ...overrides?.guardrails,
+    },
+    analysis: {
+      traceExpressions: vi.fn().mockReturnValue([]),
+      detectDataLoss: vi.fn().mockReturnValue([]),
+      checkSchemas: vi.fn().mockReturnValue([]),
+      validateNodeParams: vi.fn().mockReturnValue([]),
+      ...overrides?.analysis,
+    },
+    execution: {
+      executeSmoke: vi.fn().mockResolvedValue({ executionId: 'exec-1', status: 'success', error: null }),
+      constructPinData: vi.fn().mockReturnValue({ pinData: {}, sourceMap: {} }),
+      detectCapabilities: vi.fn().mockResolvedValue({
+        level: 'mcp',
+        mcpAvailable: false,
+        mcpTools: [],
+      }),
+      ...overrides?.execution,
+    },
+    diagnostics: {
+      synthesize: vi.fn().mockReturnValue(passSummary()),
+      ...overrides?.diagnostics,
+    },
+    snapshots: {
+      loadSnapshot: vi.fn().mockReturnValue(graph),
+      saveSnapshot: vi.fn(),
+      ...overrides?.snapshots,
+    },
+  } as OrchestratorDeps;
 }
 
 // ── Helpers to invoke tools via the server ────────────────────────
@@ -179,7 +201,7 @@ describe('MCP server — validate tool', () => {
   it('returns success envelope with DiagnosticSummary', async () => {
     const summary = passSummary();
     const deps = createMockDeps({
-      synthesize: vi.fn().mockReturnValue(summary),
+      diagnostics: { synthesize: vi.fn().mockReturnValue(summary) },
     });
     // interpret calls synthesize internally; mock the full pipeline by
     // mocking interpret via its subsystem deps
@@ -204,13 +226,13 @@ describe('MCP server — validate tool', () => {
     await validate({ kind: 'changed', workflowPath: 'test/wf.ts' });
 
     // interpret is called internally; check that buildGraph was called (pipeline ran)
-    expect(deps.parseWorkflowFile).toHaveBeenCalledWith('test/wf.ts');
+    expect(deps.parsing.parseWorkflowFile).toHaveBeenCalledWith('test/wf.ts');
   });
 
   it('returns error-status diagnostic when parseWorkflowFile fails', async () => {
     // interpret() catches parse errors and returns status:'error' diagnostics
     const deps = createMockDeps({
-      parseWorkflowFile: vi.fn().mockRejectedValue(new MalformedWorkflowError('bad nodes')),
+      parsing: { parseWorkflowFile: vi.fn().mockRejectedValue(new MalformedWorkflowError('bad nodes')) },
     });
     const server = createServer(deps);
     const validate = getToolHandler(server, 'validate');
@@ -262,9 +284,9 @@ describe('MCP server — trust_status tool', () => {
     };
 
     const deps = createMockDeps({
-      buildGraph: vi.fn().mockReturnValue(graph),
-      loadTrustState: vi.fn().mockReturnValue(trustState),
-      loadSnapshot: vi.fn().mockReturnValue(null),
+      parsing: { buildGraph: vi.fn().mockReturnValue(graph) },
+      trust: { loadTrustState: vi.fn().mockReturnValue(trustState) },
+      snapshots: { loadSnapshot: vi.fn().mockReturnValue(null) },
     });
 
     const server = createServer(deps);
@@ -312,9 +334,9 @@ describe('MCP server — explain tool', () => {
 
     await explain({ workflowPath: 'test/wf.ts' });
 
-    expect(deps.persistTrustState).not.toHaveBeenCalled();
-    expect(deps.recordValidation).not.toHaveBeenCalled();
-    expect(deps.saveSnapshot).not.toHaveBeenCalled();
+    expect(deps.trust.persistTrustState).not.toHaveBeenCalled();
+    expect(deps.trust.recordValidation).not.toHaveBeenCalled();
+    expect(deps.snapshots.saveSnapshot).not.toHaveBeenCalled();
   });
 
   it('resolves explicit nodes target', async () => {
@@ -339,11 +361,13 @@ describe('MCP server — explain tool', () => {
 
   it('maps capabilities from detected capabilities', async () => {
     const deps = createMockDeps({
-      detectCapabilities: vi.fn().mockResolvedValue({
-        level: 'static-only',
-        mcpAvailable: false,
-        mcpTools: [],
-      }),
+      execution: {
+        detectCapabilities: vi.fn().mockResolvedValue({
+          level: 'static-only',
+          mcpAvailable: false,
+          mcpTools: [],
+        }),
+      },
     });
     const server = createServer(deps);
     const explain = getToolHandler(server, 'explain');
@@ -381,7 +405,7 @@ describe('MCP server — error envelopes', () => {
 
   it('trust_status wraps MalformedWorkflowError as parse_error', async () => {
     const deps = createMockDeps({
-      parseWorkflowFile: vi.fn().mockRejectedValue(new MalformedWorkflowError('bad nodes')),
+      parsing: { parseWorkflowFile: vi.fn().mockRejectedValue(new MalformedWorkflowError('bad nodes')) },
     });
     const server = createServer(deps);
     const trustStatus = getToolHandler(server, 'trust_status');
@@ -399,7 +423,7 @@ describe('MCP server — error envelopes', () => {
   it('trust_status wraps ENOENT as workflow_not_found', async () => {
     const enoent = Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' });
     const deps = createMockDeps({
-      parseWorkflowFile: vi.fn().mockRejectedValue(enoent),
+      parsing: { parseWorkflowFile: vi.fn().mockRejectedValue(enoent) },
     });
     const server = createServer(deps);
     const trustStatus = getToolHandler(server, 'trust_status');
@@ -415,7 +439,7 @@ describe('MCP server — error envelopes', () => {
 
   it('explain wraps errors in error envelope', async () => {
     const deps = createMockDeps({
-      parseWorkflowFile: vi.fn().mockRejectedValue(new Error('unexpected')),
+      parsing: { parseWorkflowFile: vi.fn().mockRejectedValue(new Error('unexpected')) },
     });
     const server = createServer(deps);
     const explain = getToolHandler(server, 'explain');
@@ -434,7 +458,7 @@ describe('MCP server — test tool', () => {
   it('returns success envelope with DiagnosticSummary', async () => {
     const summary = passSummary();
     const deps = createMockDeps({
-      synthesize: vi.fn().mockReturnValue(summary),
+      diagnostics: { synthesize: vi.fn().mockReturnValue(summary) },
     });
     const server = createServer(deps);
     const testTool = getToolHandler(server, 'test');
@@ -452,43 +476,47 @@ describe('MCP server — test tool', () => {
   it('passes callTool through to interpret when provided', async () => {
     const mockCallTool: McpToolCaller = vi.fn().mockResolvedValue({});
     const deps = createMockDeps({
-      detectCapabilities: vi.fn().mockResolvedValue({
-        level: 'mcp',
-        mcpAvailable: true,
-        mcpTools: ['test_workflow', 'get_execution'],
-      }),
+      execution: {
+        detectCapabilities: vi.fn().mockResolvedValue({
+          level: 'mcp',
+          mcpAvailable: true,
+          mcpTools: ['test_workflow', 'get_execution'],
+        }),
+      },
     });
-    const server = createServer(deps, mockCallTool, 'http://localhost:5678', 'api-key');
+    const server = createServer(deps, mockCallTool);
     const testTool = getToolHandler(server, 'test');
 
     await testTool({ kind: 'changed', workflowPath: 'test/wf.ts' });
 
     // When callTool is provided and mcpAvailable, executeSmoke should be called
-    expect(deps.executeSmoke).toHaveBeenCalled();
+    expect(deps.execution.executeSmoke).toHaveBeenCalled();
   });
 
   it('passes pinData through to interpret', async () => {
     const mockCallTool: McpToolCaller = vi.fn().mockResolvedValue({});
     const deps = createMockDeps({
-      detectCapabilities: vi.fn().mockResolvedValue({
-        level: 'mcp',
-        mcpAvailable: true,
-        mcpTools: ['test_workflow', 'get_execution'],
-      }),
+      execution: {
+        detectCapabilities: vi.fn().mockResolvedValue({
+          level: 'mcp',
+          mcpAvailable: true,
+          mcpTools: ['test_workflow', 'get_execution'],
+        }),
+      },
     });
-    const server = createServer(deps, mockCallTool, 'http://localhost:5678', 'api-key');
+    const server = createServer(deps, mockCallTool);
     const testTool = getToolHandler(server, 'test');
 
     const pinData = { 'Node1': [{ json: { key: 'value' } }] };
     await testTool({ kind: 'changed', workflowPath: 'test/wf.ts', pinData });
 
     // constructPinData is called during execution pipeline
-    expect(deps.constructPinData).toHaveBeenCalled();
+    expect(deps.execution.constructPinData).toHaveBeenCalled();
   });
 
   it('returns error-status diagnostic when parseWorkflowFile fails', async () => {
     const deps = createMockDeps({
-      parseWorkflowFile: vi.fn().mockRejectedValue(new MalformedWorkflowError('bad nodes')),
+      parsing: { parseWorkflowFile: vi.fn().mockRejectedValue(new MalformedWorkflowError('bad nodes')) },
     });
     const server = createServer(deps);
     const testTool = getToolHandler(server, 'test');

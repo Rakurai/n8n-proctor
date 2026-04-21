@@ -14,6 +14,10 @@ import type { GuardrailDecision } from '../../src/types/guardrail.js';
 import type { WorkflowAST } from '@n8n-as-code/transformer';
 import { MalformedWorkflowError } from '../../src/static-analysis/errors.js';
 
+// ── Helper types ─────────────────────────────────────────────────
+
+type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? Partial<T[K]> : T[K] };
+
 // ── Fixture builders ──────────────────────────────────────────────
 
 function makeNode(name: string): GraphNode {
@@ -99,7 +103,7 @@ function passSummary(): DiagnosticSummary {
   };
 }
 
-function createMockDeps(overrides?: Partial<OrchestratorDeps>): OrchestratorDeps {
+function createMockDeps(overrides?: DeepPartial<OrchestratorDeps>): OrchestratorDeps {
   const graph = makeGraph(['trigger', 'httpReq']);
   const changeSet: NodeChangeSet = {
     added: [],
@@ -108,30 +112,55 @@ function createMockDeps(overrides?: Partial<OrchestratorDeps>): OrchestratorDeps
     unchanged: ['trigger' as NodeIdentity, 'httpReq' as NodeIdentity],
   };
 
+  const defaults: OrchestratorDeps = {
+    parsing: {
+      parseWorkflowFile: vi.fn().mockResolvedValue(graph.ast),
+      buildGraph: vi.fn().mockReturnValue(graph),
+    },
+    trust: {
+      loadTrustState: vi.fn().mockReturnValue(emptyTrustState()),
+      persistTrustState: vi.fn(),
+      computeChangeSet: vi.fn().mockReturnValue(changeSet),
+      invalidateTrust: vi.fn().mockImplementation((state) => state),
+      recordValidation: vi.fn().mockImplementation((state) => state),
+    },
+    guardrails: {
+      evaluate: vi.fn().mockReturnValue(proceedDecision()),
+    },
+    analysis: {
+      traceExpressions: vi.fn().mockReturnValue([]),
+      detectDataLoss: vi.fn().mockReturnValue([]),
+      checkSchemas: vi.fn().mockReturnValue([]),
+      validateNodeParams: vi.fn().mockReturnValue([]),
+    },
+    execution: {
+      executeSmoke: vi.fn().mockResolvedValue({ executionId: 'exec-1', status: 'success', error: null }),
+      constructPinData: vi.fn().mockReturnValue({ pinData: {}, sourceMap: {} }),
+      detectCapabilities: vi.fn().mockResolvedValue({
+        level: 'mcp',
+        mcpAvailable: false,
+        mcpTools: [],
+      }),
+    },
+    diagnostics: {
+      synthesize: vi.fn().mockReturnValue(passSummary()),
+    },
+    snapshots: {
+      loadSnapshot: vi.fn().mockReturnValue(graph),
+      saveSnapshot: vi.fn(),
+    },
+  };
+
+  if (!overrides) return defaults;
+
   return {
-    parseWorkflowFile: vi.fn().mockResolvedValue(graph.ast),
-    buildGraph: vi.fn().mockReturnValue(graph),
-    loadTrustState: vi.fn().mockReturnValue(emptyTrustState()),
-    persistTrustState: vi.fn(),
-    computeChangeSet: vi.fn().mockReturnValue(changeSet),
-    invalidateTrust: vi.fn().mockImplementation((state) => state),
-    recordValidation: vi.fn().mockImplementation((state) => state),
-    evaluate: vi.fn().mockReturnValue(proceedDecision()),
-    traceExpressions: vi.fn().mockReturnValue([]),
-    detectDataLoss: vi.fn().mockReturnValue([]),
-    checkSchemas: vi.fn().mockReturnValue([]),
-    validateNodeParams: vi.fn().mockReturnValue([]),
-    executeSmoke: vi.fn().mockResolvedValue({ executionId: 'exec-1', status: 'success', error: null }),
-    constructPinData: vi.fn().mockReturnValue({ pinData: {}, sourceMap: {} }),
-    synthesize: vi.fn().mockReturnValue(passSummary()),
-    loadSnapshot: vi.fn().mockReturnValue(graph),
-    saveSnapshot: vi.fn(),
-    detectCapabilities: vi.fn().mockResolvedValue({
-      level: 'mcp',
-      mcpAvailable: false,
-      mcpTools: [],
-    }),
-    ...overrides,
+    parsing: { ...defaults.parsing, ...overrides.parsing },
+    trust: { ...defaults.trust, ...overrides.trust },
+    guardrails: { ...defaults.guardrails, ...overrides.guardrails },
+    analysis: { ...defaults.analysis, ...overrides.analysis },
+    execution: { ...defaults.execution, ...overrides.execution },
+    diagnostics: { ...defaults.diagnostics, ...overrides.diagnostics },
+    snapshots: { ...defaults.snapshots, ...overrides.snapshots },
   };
 }
 
@@ -158,7 +187,7 @@ describe('runValidate', () => {
     // interpret() normally catches errors, but if something truly unexpected happens
     // (e.g., deps itself throws synchronously), runValidate's catch block handles it
     const deps = createMockDeps({
-      parseWorkflowFile: vi.fn().mockImplementation(() => { throw new TypeError('null ref'); }),
+      parsing: { parseWorkflowFile: vi.fn().mockImplementation(() => { throw new TypeError('null ref'); }) },
     });
     const result = await runValidate('/test/wf.ts', defaultOptions, deps);
 
@@ -185,7 +214,7 @@ describe('runTrust', () => {
 
   it('returns error envelope on parse failure', async () => {
     const deps = createMockDeps({
-      parseWorkflowFile: vi.fn().mockRejectedValue(new MalformedWorkflowError('bad')),
+      parsing: { parseWorkflowFile: vi.fn().mockRejectedValue(new MalformedWorkflowError('bad')) },
     });
     const result = await runTrust('/bad.ts', deps);
 
@@ -231,7 +260,7 @@ describe('runExplain', () => {
 
   it('returns error envelope on failure', async () => {
     const deps = createMockDeps({
-      parseWorkflowFile: vi.fn().mockRejectedValue(new Error('boom')),
+      parsing: { parseWorkflowFile: vi.fn().mockRejectedValue(new Error('boom')) },
     });
     const result = await runExplain('/bad.ts', defaultOptions, deps);
 
@@ -262,7 +291,7 @@ describe('runTest', () => {
 
   it('returns error-status diagnostic on parse failure', async () => {
     const deps = createMockDeps({
-      parseWorkflowFile: vi.fn().mockRejectedValue(new MalformedWorkflowError('bad')),
+      parsing: { parseWorkflowFile: vi.fn().mockRejectedValue(new MalformedWorkflowError('bad')) },
     });
     const result = await runTest('/bad.ts', defaultOptions, deps);
 
@@ -278,6 +307,6 @@ describe('runTest', () => {
     await runTest('/test/wf.ts', defaultOptions, deps);
 
     // tool:'test' triggers the execution path in interpret, which calls detectCapabilities
-    expect(deps.detectCapabilities).toHaveBeenCalled();
+    expect(deps.execution.detectCapabilities).toHaveBeenCalled();
   });
 });

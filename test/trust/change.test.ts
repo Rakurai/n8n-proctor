@@ -36,9 +36,10 @@ function withModifiedAst(
   nodeName: string,
   astChanges: Partial<NodeAST>,
 ): WorkflowGraph {
+  const srcAst = graph.ast as WorkflowAST;
   const ast: WorkflowAST = {
-    ...graph.ast,
-    nodes: graph.ast.nodes.map((n) =>
+    ...srcAst,
+    nodes: srcAst.nodes.map((n) =>
       n.propertyName === nodeName ? { ...n, ...astChanges } : n,
     ),
   };
@@ -61,9 +62,9 @@ function withAddedNode(
   const displayNameIndex = new Map(graph.displayNameIndex);
   displayNameIndex.set(node.displayName, id);
   const ast: WorkflowAST = {
-    ...graph.ast,
+    ...graph.ast as WorkflowAST,
     nodes: [
-      ...graph.ast.nodes,
+      ...(graph.ast as WorkflowAST).nodes,
       {
         propertyName: node.name,
         displayName: node.displayName,
@@ -98,9 +99,9 @@ function withRemovedNode(graph: WorkflowGraph, nodeName: string): WorkflowGraph 
   const removedNode = graph.nodes.get(id);
   if (removedNode) displayNameIndex.delete(removedNode.displayName);
   const ast: WorkflowAST = {
-    ...graph.ast,
-    nodes: graph.ast.nodes.filter((n) => n.propertyName !== nodeName),
-    connections: graph.ast.connections.filter(
+    ...graph.ast as WorkflowAST,
+    nodes: (graph.ast as WorkflowAST).nodes.filter((n) => n.propertyName !== nodeName),
+    connections: (graph.ast as WorkflowAST).connections.filter(
       (c) => c.from.node !== nodeName && c.to.node !== nodeName,
     ),
   };
@@ -193,8 +194,8 @@ describe('computeChangeSet', () => {
     const previous = await loadLinearSimple();
     // Only change AST position — content hash stays the same since position is excluded
     const ast: WorkflowAST = {
-      ...previous.ast,
-      nodes: previous.ast.nodes.map((n) =>
+      ...previous.ast as WorkflowAST,
+      nodes: (previous.ast as WorkflowAST).nodes.map((n) =>
         n.propertyName === 'httpRequest'
           ? { ...n, position: [999, 999] as [number, number] }
           : n,
@@ -304,7 +305,7 @@ describe('computeChangeSet', () => {
   it('detects rename (removed+added with identical content)', async () => {
     const previous = await loadLinearSimple();
     const originalNode = previous.nodes.get('httpRequest' as NodeIdentity)!;
-    const originalAst = previous.ast.nodes.find((n) => n.propertyName === 'httpRequest')!;
+    const originalAst = (previous.ast as WorkflowAST).nodes.find((n) => n.propertyName === 'httpRequest')!;
 
     // Remove original, add renamed copy with same type/version/parameters
     let current = withRemovedNode(previous, 'httpRequest');

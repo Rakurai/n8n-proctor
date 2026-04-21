@@ -118,6 +118,6 @@ const result = await bootstrap(
 );
 
 const deps = buildDeps();
-const server = createServer(deps, result.callTool, result.n8nHost, result.n8nApiKey);
+const server = createServer(deps, result.callTool);
 const transport = new StdioServerTransport();
 await server.connect(transport);

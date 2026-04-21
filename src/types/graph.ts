@@ -12,6 +12,22 @@ import type { WorkflowAST } from '@n8n-as-code/transformer';
 import type { NodeIdentity } from './identity.js';
 
 /**
+ * Minimal AST substitute for deserialized snapshots that lack a full
+ * WorkflowAST. Carries only the node-level execution settings that
+ * `computeContentHash` and `executionSettingsChanged` require.
+ */
+export interface SnapshotAST {
+  nodes: Array<{
+    propertyName: string;
+    position: [number, number];
+    retryOnFail: boolean;
+    executeOnce: boolean;
+    onError: string | null;
+  }>;
+  connections: never[];
+}
+
+/**
  * Complete traversable representation of a parsed n8n workflow.
  *
  * Both adjacency maps are derived from the same edge set; they are maintained
@@ -34,8 +50,9 @@ export interface WorkflowGraph {
    */
   displayNameIndex: Map<string, NodeIdentity>;
 
-  /** Original AST produced by the n8nac transformer; preserved for provenance. */
-  ast: WorkflowAST;
+  /** Original AST produced by the n8nac transformer; preserved for provenance.
+   *  Deserialized snapshots use `SnapshotAST` which carries only execution settings. */
+  ast: WorkflowAST | SnapshotAST;
 }
 
 /**

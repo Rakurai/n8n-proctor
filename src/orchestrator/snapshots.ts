@@ -9,8 +9,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type { WorkflowAST } from '@n8n-as-code/transformer';
-import type { Edge, GraphNode, WorkflowGraph } from '../types/graph.js';
+import type { Edge, GraphNode, SnapshotAST, WorkflowGraph } from '../types/graph.js';
 import type { NodeIdentity } from '../types/identity.js';
 import { nodeIdentity } from '../types/identity.js';
 import type { SerializedEdge, SerializedGraphNode, WorkflowSnapshot } from './types.js';
@@ -143,7 +142,7 @@ function deserializeGraph(snapshot: WorkflowSnapshot): WorkflowGraph {
     executeOnce: sn.executeOnce ?? false,
     onError: sn.onError ?? null,
   }));
-  const ast = { nodes: astNodes, connections: [] } as unknown as WorkflowAST;
+  const ast: SnapshotAST = { nodes: astNodes, connections: [] };
 
   return { nodes, forward, backward, displayNameIndex, ast };
 }

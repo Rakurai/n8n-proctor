@@ -51,8 +51,8 @@ describe('computeContentHash', () => {
 
     // Need a modified AST with matching propertyName and different position/notes
     const modifiedAst: WorkflowAST = {
-      ...graph.ast,
-      nodes: graph.ast.nodes.map((n) =>
+      ...graph.ast as WorkflowAST,
+      nodes: (graph.ast as WorkflowAST).nodes.map((n) =>
         n.propertyName === 'httpRequest'
           ? { ...n, propertyName: 'differentPropertyName', displayName: 'Different Display Name', position: [999, 999] as [number, number] }
           : n,

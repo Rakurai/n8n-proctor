@@ -99,7 +99,9 @@ function proceedDecision(): GuardrailDecision {
 
 // ── Mock deps factory ─────────────────────────────────────────────
 
-function createMockDeps(overrides?: Partial<OrchestratorDeps>): OrchestratorDeps {
+type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? Partial<T[K]> : T[K] };
+
+function createMockDeps(overrides?: DeepPartial<OrchestratorDeps>): OrchestratorDeps {
   const currentGraph = makeGraph(
     ['trigger', 'httpReq', 'setNode', 'end'],
     [['trigger', 'httpReq'], ['httpReq', 'setNode'], ['setNode', 'end']],
@@ -119,34 +121,61 @@ function createMockDeps(overrides?: Partial<OrchestratorDeps>): OrchestratorDeps
     unchanged: ['trigger' as NodeIdentity, 'httpReq' as NodeIdentity, 'end' as NodeIdentity],
   };
 
-  return {
+  const defaultParsing = {
     parseWorkflowFile: vi.fn().mockResolvedValue(currentGraph.ast),
     buildGraph: vi.fn().mockReturnValue(currentGraph),
+  };
+
+  const defaultTrust = {
     loadTrustState: vi.fn().mockReturnValue(emptyTrustState()),
     persistTrustState: vi.fn(),
     computeChangeSet: vi.fn().mockReturnValue(changeSet),
     invalidateTrust: vi.fn().mockImplementation((state) => state),
     recordValidation: vi.fn().mockImplementation((state) => state),
+  };
+
+  const defaultGuardrails = {
     evaluate: vi.fn().mockReturnValue(proceedDecision()),
+  };
+
+  const defaultAnalysis = {
     traceExpressions: vi.fn().mockReturnValue([]),
     detectDataLoss: vi.fn().mockReturnValue([]),
     checkSchemas: vi.fn().mockReturnValue([]),
     validateNodeParams: vi.fn().mockReturnValue([]),
+  };
+
+  const defaultExecution = {
     executeSmoke: vi.fn().mockResolvedValue({ executionId: 'exec-1', status: 'success', error: null }),
     constructPinData: vi.fn().mockReturnValue({ pinData: {}, sourceMap: {} }),
-    synthesize: vi.fn().mockImplementation((input) => {
-      const target = input.resolvedTarget as ResolvedTarget;
-      const meta = input.meta as ValidationMeta;
-      return passSummary(target, meta);
-    }),
-    loadSnapshot: vi.fn().mockReturnValue(previousGraph),
-    saveSnapshot: vi.fn(),
     detectCapabilities: vi.fn().mockResolvedValue({
       level: 'mcp',
       mcpAvailable: false,
       mcpTools: [],
     }),
-    ...overrides,
+  };
+
+  const defaultDiagnostics = {
+    synthesize: vi.fn().mockImplementation((input) => {
+      const target = input.resolvedTarget as ResolvedTarget;
+      const meta = input.meta as ValidationMeta;
+      return passSummary(target, meta);
+    }),
+  };
+
+  const defaultSnapshots = {
+    loadSnapshot: vi.fn().mockReturnValue(previousGraph),
+    saveSnapshot: vi.fn(),
+  };
+
+  return {
+    parsing: { ...defaultParsing, ...overrides?.parsing },
+    trust: { ...defaultTrust, ...overrides?.trust },
+    guardrails: { ...defaultGuardrails, ...overrides?.guardrails },
+    analysis: { ...defaultAnalysis, ...overrides?.analysis },
+    execution: { ...defaultExecution, ...overrides?.execution },
+    diagnostics: { ...defaultDiagnostics, ...overrides?.diagnostics },
+    snapshots: { ...defaultSnapshots, ...overrides?.snapshots },
   };
 }
 
@@ -175,8 +204,8 @@ describe('interpret() — changed-target static-only pipeline', () => {
 
     await interpret(baseRequest, deps);
 
-    expect(deps.loadSnapshot).toHaveBeenCalled();
-    expect(deps.computeChangeSet).toHaveBeenCalled();
+    expect(deps.snapshots.loadSnapshot).toHaveBeenCalled();
+    expect(deps.trust.computeChangeSet).toHaveBeenCalled();
   });
 
   it('consults guardrails with correct evaluation input', async () => {
@@ -184,8 +213,8 @@ describe('interpret() — changed-target static-only pipeline', () => {
 
     await interpret(baseRequest, deps);
 
-    expect(deps.evaluate).toHaveBeenCalledTimes(1);
-    const evalInput = vi.mocked(deps.evaluate).mock.calls[0]![0];
+    expect(deps.guardrails.evaluate).toHaveBeenCalledTimes(1);
+    const evalInput = vi.mocked(deps.guardrails.evaluate).mock.calls[0]![0];
     expect(evalInput.tool).toBe('validate');
     expect(evalInput.force).toBe(false);
   });
@@ -195,10 +224,10 @@ describe('interpret() — changed-target static-only pipeline', () => {
 
     await interpret(baseRequest, deps);
 
-    expect(deps.traceExpressions).toHaveBeenCalled();
-    expect(deps.detectDataLoss).toHaveBeenCalled();
-    expect(deps.checkSchemas).toHaveBeenCalled();
-    expect(deps.validateNodeParams).toHaveBeenCalled();
+    expect(deps.analysis.traceExpressions).toHaveBeenCalled();
+    expect(deps.analysis.detectDataLoss).toHaveBeenCalled();
+    expect(deps.analysis.checkSchemas).toHaveBeenCalled();
+    expect(deps.analysis.validateNodeParams).toHaveBeenCalled();
   });
 
   it('calls synthesize with collected evidence', async () => {
@@ -206,8 +235,8 @@ describe('interpret() — changed-target static-only pipeline', () => {
 
     await interpret(baseRequest, deps);
 
-    expect(deps.synthesize).toHaveBeenCalledTimes(1);
-    const synthInput = vi.mocked(deps.synthesize).mock.calls[0]![0];
+    expect(deps.diagnostics.synthesize).toHaveBeenCalledTimes(1);
+    const synthInput = vi.mocked(deps.diagnostics.synthesize).mock.calls[0]![0];
     expect(synthInput.staticFindings).toBeDefined();
     expect(synthInput.guardrailDecisions).toHaveLength(1);
   });
@@ -218,8 +247,8 @@ describe('interpret() — changed-target static-only pipeline', () => {
     const result = await interpret(baseRequest, deps);
 
     expect(result.status).toBe('pass');
-    expect(deps.recordValidation).toHaveBeenCalled();
-    expect(deps.persistTrustState).toHaveBeenCalled();
+    expect(deps.trust.recordValidation).toHaveBeenCalled();
+    expect(deps.trust.persistTrustState).toHaveBeenCalled();
   });
 
   it('saves snapshot on pass', async () => {
@@ -228,37 +257,39 @@ describe('interpret() — changed-target static-only pipeline', () => {
     const result = await interpret(baseRequest, deps);
 
     expect(result.status).toBe('pass');
-    expect(deps.saveSnapshot).toHaveBeenCalled();
+    expect(deps.snapshots.saveSnapshot).toHaveBeenCalled();
   });
 
   it('does not update trust or save snapshot on fail', async () => {
     const deps = createMockDeps({
-      synthesize: vi.fn().mockReturnValue({
-        schemaVersion: 1,
-        status: 'fail',
-        target: { description: 'test', nodes: [], automatic: false },
-        evidenceBasis: 'static',
-        executedPath: null,
-        errors: [{ type: 'TestError', message: 'fail', description: null, node: null, classification: 'unknown', context: {} }],
-        nodeAnnotations: [],
-        guardrailActions: [],
-        hints: [],
-        capabilities: { staticAnalysis: true, mcpTools: false },
-        meta: { runId: 'x', executionId: null, timestamp: '', durationMs: 0 },
-      }),
+      diagnostics: {
+        synthesize: vi.fn().mockReturnValue({
+          schemaVersion: 1,
+          status: 'fail',
+          target: { description: 'test', nodes: [], automatic: false },
+          evidenceBasis: 'static',
+          executedPath: null,
+          errors: [{ type: 'TestError', message: 'fail', description: null, node: null, classification: 'unknown', context: {} }],
+          nodeAnnotations: [],
+          guardrailActions: [],
+          hints: [],
+          capabilities: { staticAnalysis: true, mcpTools: false },
+          meta: { runId: 'x', executionId: null, timestamp: '', durationMs: 0 },
+        }),
+      },
     });
 
     const result = await interpret(baseRequest, deps);
 
     expect(result.status).toBe('fail');
-    expect(deps.recordValidation).not.toHaveBeenCalled();
-    expect(deps.persistTrustState).not.toHaveBeenCalled();
-    expect(deps.saveSnapshot).not.toHaveBeenCalled();
+    expect(deps.trust.recordValidation).not.toHaveBeenCalled();
+    expect(deps.trust.persistTrustState).not.toHaveBeenCalled();
+    expect(deps.snapshots.saveSnapshot).not.toHaveBeenCalled();
   });
 
   it('returns error diagnostic on parse failure', async () => {
     const deps = createMockDeps({
-      parseWorkflowFile: vi.fn().mockRejectedValue(new Error('File not found')),
+      parsing: { parseWorkflowFile: vi.fn().mockRejectedValue(new Error('File not found')) },
     });
 
     const result = await interpret(baseRequest, deps);
@@ -269,12 +300,14 @@ describe('interpret() — changed-target static-only pipeline', () => {
 
   it('returns skipped when guardrail refuses', async () => {
     const deps = createMockDeps({
-      evaluate: vi.fn().mockReturnValue({
-        action: 'refuse',
-        explanation: 'All nodes trusted',
-        evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
-        overridable: true,
-      }),
+      guardrails: {
+        evaluate: vi.fn().mockReturnValue({
+          action: 'refuse',
+          explanation: 'All nodes trusted',
+          evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
+          overridable: true,
+        }),
+      },
     });
 
     const result = await interpret(baseRequest, deps);
@@ -302,7 +335,7 @@ describe('interpret() — nodes-target pipeline (US2)', () => {
 
     expect(result.status).toBe('pass');
     // Synthesize should have been called with a target containing the named nodes
-    const synthInput = vi.mocked(deps.synthesize).mock.calls[0]![0];
+    const synthInput = vi.mocked(deps.diagnostics.synthesize).mock.calls[0]![0];
     const targetNodes = synthInput.resolvedTarget.nodes.map(String);
     expect(targetNodes).toContain('httpReq');
     expect(targetNodes).toContain('setNode');
@@ -346,21 +379,23 @@ describe('interpret() — nodes-target pipeline (US2)', () => {
 describe('interpret() — workflow-target with guardrail narrowing (US3)', () => {
   it('narrows workflow target when guardrail returns narrow', async () => {
     const deps = createMockDeps({
-      evaluate: vi.fn().mockReturnValue({
-        action: 'narrow',
-        explanation: 'Most nodes unchanged, narrowing to changed slice',
-        evidence: { changedNodes: ['setNode' as NodeIdentity], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
-        overridable: true,
-        narrowedTarget: {
-          kind: 'slice' as const,
-          slice: {
-            nodes: new Set(['setNode' as NodeIdentity, 'end' as NodeIdentity]),
-            seedNodes: new Set(['setNode' as NodeIdentity]),
-            entryPoints: ['setNode' as NodeIdentity],
-            exitPoints: ['end' as NodeIdentity],
+      guardrails: {
+        evaluate: vi.fn().mockReturnValue({
+          action: 'narrow',
+          explanation: 'Most nodes unchanged, narrowing to changed slice',
+          evidence: { changedNodes: ['setNode' as NodeIdentity], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
+          overridable: true,
+          narrowedTarget: {
+            kind: 'slice' as const,
+            slice: {
+              nodes: new Set(['setNode' as NodeIdentity, 'end' as NodeIdentity]),
+              seedNodes: new Set(['setNode' as NodeIdentity]),
+              entryPoints: ['setNode' as NodeIdentity],
+              exitPoints: ['end' as NodeIdentity],
+            },
           },
-        },
-      }),
+        }),
+      },
     });
 
     const request: ValidationRequest = {
@@ -374,27 +409,29 @@ describe('interpret() — workflow-target with guardrail narrowing (US3)', () =>
     const result = await interpret(request, deps);
 
     expect(result.status).toBe('pass');
-    const synthInput = vi.mocked(deps.synthesize).mock.calls[0]![0];
+    const synthInput = vi.mocked(deps.diagnostics.synthesize).mock.calls[0]![0];
     expect(synthInput.resolvedTarget.description).toContain('Narrowed');
   });
 
   it('overrides narrowing when force is true', async () => {
     const deps = createMockDeps({
-      evaluate: vi.fn().mockReturnValue({
-        action: 'narrow',
-        explanation: 'Would narrow',
-        evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
-        overridable: true,
-        narrowedTarget: {
-          kind: 'slice' as const,
-          slice: {
-            nodes: new Set(['setNode' as NodeIdentity]),
-            seedNodes: new Set(['setNode' as NodeIdentity]),
-            entryPoints: ['setNode' as NodeIdentity],
-            exitPoints: ['setNode' as NodeIdentity],
+      guardrails: {
+        evaluate: vi.fn().mockReturnValue({
+          action: 'narrow',
+          explanation: 'Would narrow',
+          evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
+          overridable: true,
+          narrowedTarget: {
+            kind: 'slice' as const,
+            slice: {
+              nodes: new Set(['setNode' as NodeIdentity]),
+              seedNodes: new Set(['setNode' as NodeIdentity]),
+              entryPoints: ['setNode' as NodeIdentity],
+              exitPoints: ['setNode' as NodeIdentity],
+            },
           },
-        },
-      }),
+        }),
+      },
     });
 
     const request: ValidationRequest = {
@@ -408,27 +445,29 @@ describe('interpret() — workflow-target with guardrail narrowing (US3)', () =>
     const result = await interpret(request, deps);
 
     expect(result.status).toBe('pass');
-    const synthInput = vi.mocked(deps.synthesize).mock.calls[0]![0];
+    const synthInput = vi.mocked(deps.diagnostics.synthesize).mock.calls[0]![0];
     expect(synthInput.resolvedTarget.description).not.toContain('Narrowed');
   });
 
   it('includes guardrail decision in summary guardrailActions', async () => {
     const deps = createMockDeps({
-      evaluate: vi.fn().mockReturnValue({
-        action: 'narrow',
-        explanation: 'Narrowing',
-        evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
-        overridable: true,
-        narrowedTarget: {
-          kind: 'slice' as const,
-          slice: {
-            nodes: new Set(['setNode' as NodeIdentity]),
-            seedNodes: new Set(['setNode' as NodeIdentity]),
-            entryPoints: ['setNode' as NodeIdentity],
-            exitPoints: ['setNode' as NodeIdentity],
+      guardrails: {
+        evaluate: vi.fn().mockReturnValue({
+          action: 'narrow',
+          explanation: 'Narrowing',
+          evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
+          overridable: true,
+          narrowedTarget: {
+            kind: 'slice' as const,
+            slice: {
+              nodes: new Set(['setNode' as NodeIdentity]),
+              seedNodes: new Set(['setNode' as NodeIdentity]),
+              entryPoints: ['setNode' as NodeIdentity],
+              exitPoints: ['setNode' as NodeIdentity],
+            },
           },
-        },
-      }),
+        }),
+      },
     });
 
     const request: ValidationRequest = {
@@ -441,8 +480,7 @@ describe('interpret() — workflow-target with guardrail narrowing (US3)', () =>
 
     await interpret(request, deps);
 
-    // guardrailActions is populated by synthesize, which gets the decisions
-    const synthInput = vi.mocked(deps.synthesize).mock.calls[0]![0];
+    const synthInput = vi.mocked(deps.diagnostics.synthesize).mock.calls[0]![0];
     expect(synthInput.guardrailDecisions).toHaveLength(1);
     expect(synthInput.guardrailDecisions[0]!.action).toBe('narrow');
   });
@@ -459,53 +497,59 @@ describe('interpret() — guardrail routing (US4 T012)', () => {
 
   it('refuse: returns skipped, no static/execution runs', async () => {
     const deps = createMockDeps({
-      evaluate: vi.fn().mockReturnValue({
-        action: 'refuse',
-        explanation: 'All trusted',
-        evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
-        overridable: true,
-      }),
+      guardrails: {
+        evaluate: vi.fn().mockReturnValue({
+          action: 'refuse',
+          explanation: 'All trusted',
+          evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
+          overridable: true,
+        }),
+      },
     });
 
     const result = await interpret(baseRequest, deps);
 
     expect(result.status).toBe('skipped');
-    expect(deps.detectDataLoss).not.toHaveBeenCalled();
-    expect(deps.checkSchemas).not.toHaveBeenCalled();
+    expect(deps.analysis.detectDataLoss).not.toHaveBeenCalled();
+    expect(deps.analysis.checkSchemas).not.toHaveBeenCalled();
   });
 
   it('refuse: test-refusal skips validation', async () => {
     const deps = createMockDeps({
-      evaluate: vi.fn().mockReturnValue({
-        action: 'refuse',
-        explanation: 'All changes are structurally analyzable -- use validate instead.',
-        evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
-        overridable: true,
-      }),
+      guardrails: {
+        evaluate: vi.fn().mockReturnValue({
+          action: 'refuse',
+          explanation: 'All changes are structurally analyzable -- use validate instead.',
+          evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
+          overridable: true,
+        }),
+      },
     });
 
     const request = { ...baseRequest, tool: 'test' as const };
     const result = await interpret(request, deps);
 
     expect(result.status).toBe('skipped');
-    expect(deps.detectDataLoss).not.toHaveBeenCalled();
-    expect(deps.executeSmoke).not.toHaveBeenCalled();
+    expect(deps.analysis.detectDataLoss).not.toHaveBeenCalled();
+    expect(deps.execution.executeSmoke).not.toHaveBeenCalled();
   });
 
   it('warn: proceeds normally', async () => {
     const deps = createMockDeps({
-      evaluate: vi.fn().mockReturnValue({
-        action: 'warn',
-        explanation: 'Broad target warning',
-        evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
-        overridable: false,
-      }),
+      guardrails: {
+        evaluate: vi.fn().mockReturnValue({
+          action: 'warn',
+          explanation: 'Broad target warning',
+          evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
+          overridable: false,
+        }),
+      },
     });
 
     const result = await interpret(baseRequest, deps);
 
     expect(result.status).toBe('pass');
-    expect(deps.detectDataLoss).toHaveBeenCalled();
+    expect(deps.analysis.detectDataLoss).toHaveBeenCalled();
   });
 
   it('proceed: no changes to target or tool', async () => {
@@ -518,12 +562,14 @@ describe('interpret() — guardrail routing (US4 T012)', () => {
 
   it('force flag overrides refusal', async () => {
     const deps = createMockDeps({
-      evaluate: vi.fn().mockReturnValue({
-        action: 'refuse',
-        explanation: 'Would refuse',
-        evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
-        overridable: true,
-      }),
+      guardrails: {
+        evaluate: vi.fn().mockReturnValue({
+          action: 'refuse',
+          explanation: 'Would refuse',
+          evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
+          overridable: true,
+        }),
+      },
     });
 
     const request = { ...baseRequest, force: true };
@@ -540,11 +586,13 @@ describe('interpret() — execution-backed testing (tool: test)', () => {
       data: { resultData: { runData: {}, error: null, lastNodeExecuted: null } },
     });
     const deps = createMockDeps({
-      detectCapabilities: vi.fn().mockResolvedValue({
-        level: 'mcp',
-        mcpAvailable: true,
-        mcpTools: ['test_workflow'],
-      }),
+      execution: {
+        detectCapabilities: vi.fn().mockResolvedValue({
+          level: 'mcp',
+          mcpAvailable: true,
+          mcpTools: ['test_workflow'],
+        }),
+      },
     });
 
     const request: ValidationRequest = {
@@ -559,7 +607,7 @@ describe('interpret() — execution-backed testing (tool: test)', () => {
     const result = await interpret(request, deps);
 
     expect(result.status).toBe('pass');
-    expect(deps.executeSmoke).toHaveBeenCalled();
+    expect(deps.execution.executeSmoke).toHaveBeenCalled();
   });
 
   it('tool:validate runs only static, no execution', async () => {
@@ -576,18 +624,20 @@ describe('interpret() — execution-backed testing (tool: test)', () => {
     const result = await interpret(request, deps);
 
     expect(result.status).toBe('pass');
-    expect(deps.detectDataLoss).toHaveBeenCalled();
-    expect(deps.executeSmoke).not.toHaveBeenCalled();
+    expect(deps.analysis.detectDataLoss).toHaveBeenCalled();
+    expect(deps.execution.executeSmoke).not.toHaveBeenCalled();
   });
 
   it('test-refusal: tool:test with refuse guardrail skips execution', async () => {
     const deps = createMockDeps({
-      evaluate: vi.fn().mockReturnValue({
-        action: 'refuse',
-        explanation: 'All changes are structurally analyzable -- use validate instead.',
-        evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
-        overridable: true,
-      }),
+      guardrails: {
+        evaluate: vi.fn().mockReturnValue({
+          action: 'refuse',
+          explanation: 'All changes are structurally analyzable -- use validate instead.',
+          evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
+          overridable: true,
+        }),
+      },
     });
 
     const request: ValidationRequest = {
@@ -601,18 +651,20 @@ describe('interpret() — execution-backed testing (tool: test)', () => {
     const result = await interpret(request, deps);
 
     expect(result.status).toBe('skipped');
-    expect(deps.executeSmoke).not.toHaveBeenCalled();
+    expect(deps.execution.executeSmoke).not.toHaveBeenCalled();
   });
 
   it('returns error on execution failure', async () => {
     const callTool = vi.fn();
     const deps = createMockDeps({
-      detectCapabilities: vi.fn().mockResolvedValue({
-        level: 'mcp',
-        mcpAvailable: true,
-        mcpTools: ['test_workflow'],
-      }),
-      executeSmoke: vi.fn().mockRejectedValue(new Error('Connection refused')),
+      execution: {
+        detectCapabilities: vi.fn().mockResolvedValue({
+          level: 'mcp',
+          mcpAvailable: true,
+          mcpTools: ['test_workflow'],
+        }),
+        executeSmoke: vi.fn().mockRejectedValue(new Error('Connection refused')),
+      },
     });
 
     const request: ValidationRequest = {
@@ -646,52 +698,56 @@ describe('interpret() — trust persistence across runs (US5 T015)', () => {
     const result = await interpret(baseRequest, deps);
 
     expect(result.status).toBe('pass');
-    expect(deps.recordValidation).toHaveBeenCalledTimes(1);
-    expect(deps.persistTrustState).toHaveBeenCalledTimes(1);
-    expect(deps.saveSnapshot).toHaveBeenCalledTimes(1);
+    expect(deps.trust.recordValidation).toHaveBeenCalledTimes(1);
+    expect(deps.trust.persistTrustState).toHaveBeenCalledTimes(1);
+    expect(deps.snapshots.saveSnapshot).toHaveBeenCalledTimes(1);
   });
 
   it('does not update trust or snapshot on fail', async () => {
     const deps = createMockDeps({
-      synthesize: vi.fn().mockReturnValue({
-        schemaVersion: 1,
-        status: 'fail',
-        target: { description: 'test', nodes: [], automatic: false },
-        evidenceBasis: 'static',
-        executedPath: null,
-        errors: [{ type: 'TestError', message: 'test fail', description: null, node: null, classification: 'unknown', context: {} }],
-        nodeAnnotations: [],
-        guardrailActions: [],
-        hints: [],
-        capabilities: { staticAnalysis: true, mcpTools: false },
-        meta: { runId: 'x', executionId: null, timestamp: '', durationMs: 0 },
-      }),
+      diagnostics: {
+        synthesize: vi.fn().mockReturnValue({
+          schemaVersion: 1,
+          status: 'fail',
+          target: { description: 'test', nodes: [], automatic: false },
+          evidenceBasis: 'static',
+          executedPath: null,
+          errors: [{ type: 'TestError', message: 'test fail', description: null, node: null, classification: 'unknown', context: {} }],
+          nodeAnnotations: [],
+          guardrailActions: [],
+          hints: [],
+          capabilities: { staticAnalysis: true, mcpTools: false },
+          meta: { runId: 'x', executionId: null, timestamp: '', durationMs: 0 },
+        }),
+      },
     });
 
     const result = await interpret(baseRequest, deps);
 
     expect(result.status).toBe('fail');
-    expect(deps.recordValidation).not.toHaveBeenCalled();
-    expect(deps.persistTrustState).not.toHaveBeenCalled();
-    expect(deps.saveSnapshot).not.toHaveBeenCalled();
+    expect(deps.trust.recordValidation).not.toHaveBeenCalled();
+    expect(deps.trust.persistTrustState).not.toHaveBeenCalled();
+    expect(deps.snapshots.saveSnapshot).not.toHaveBeenCalled();
   });
 
   it('does not update trust on guardrail refusal (skipped)', async () => {
     const deps = createMockDeps({
-      evaluate: vi.fn().mockReturnValue({
-        action: 'refuse',
-        explanation: 'Refused',
-        evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
-        overridable: true,
-      }),
+      guardrails: {
+        evaluate: vi.fn().mockReturnValue({
+          action: 'refuse',
+          explanation: 'Refused',
+          evidence: { changedNodes: [], trustedNodes: [], lastValidatedAt: null, fixtureChanged: false },
+          overridable: true,
+        }),
+      },
     });
 
     const result = await interpret(baseRequest, deps);
 
     expect(result.status).toBe('skipped');
-    expect(deps.recordValidation).not.toHaveBeenCalled();
-    expect(deps.persistTrustState).not.toHaveBeenCalled();
-    expect(deps.saveSnapshot).not.toHaveBeenCalled();
+    expect(deps.trust.recordValidation).not.toHaveBeenCalled();
+    expect(deps.trust.persistTrustState).not.toHaveBeenCalled();
+    expect(deps.snapshots.saveSnapshot).not.toHaveBeenCalled();
   });
 
   it('recordValidation receives validated node identities', async () => {
@@ -699,7 +755,7 @@ describe('interpret() — trust persistence across runs (US5 T015)', () => {
 
     await interpret(baseRequest, deps);
 
-    const recordCall = vi.mocked(deps.recordValidation).mock.calls[0]!;
+    const recordCall = vi.mocked(deps.trust.recordValidation).mock.calls[0]!;
     const validatedNodes = recordCall[1];
     // Validated nodes should be the resolved target nodes
     expect(validatedNodes.length).toBeGreaterThan(0);
@@ -730,9 +786,9 @@ describe('interpret() — multi-path validation (US6 T020)', () => {
     };
 
     const deps = createMockDeps({
-      buildGraph: vi.fn().mockReturnValue(branchGraph),
-      computeChangeSet: vi.fn().mockReturnValue(changeSet),
-      loadSnapshot: vi.fn().mockReturnValue(branchGraph),
+      parsing: { buildGraph: vi.fn().mockReturnValue(branchGraph) },
+      trust: { computeChangeSet: vi.fn().mockReturnValue(changeSet) },
+      snapshots: { loadSnapshot: vi.fn().mockReturnValue(branchGraph) },
     });
 
     const request: ValidationRequest = {
@@ -747,7 +803,7 @@ describe('interpret() — multi-path validation (US6 T020)', () => {
 
     // With multi-path (B on one branch, D on another),
     // detectDataLoss should be called once per path (2 paths) for static analysis
-    const dataLossCallCount = vi.mocked(deps.detectDataLoss).mock.calls.length;
+    const dataLossCallCount = vi.mocked(deps.analysis.detectDataLoss).mock.calls.length;
     expect(dataLossCallCount).toBe(2);
   });
 });
@@ -763,7 +819,7 @@ describe('interpret() — error conditions (T022)', () => {
 
   it('returns error diagnostic when workflow file not found', async () => {
     const deps = createMockDeps({
-      parseWorkflowFile: vi.fn().mockRejectedValue(new Error('ENOENT: no such file')),
+      parsing: { parseWorkflowFile: vi.fn().mockRejectedValue(new Error('ENOENT: no such file')) },
     });
 
     const result = await interpret(baseRequest, deps);
@@ -774,7 +830,7 @@ describe('interpret() — error conditions (T022)', () => {
 
   it('returns error diagnostic on malformed workflow parse failure', async () => {
     const deps = createMockDeps({
-      parseWorkflowFile: vi.fn().mockRejectedValue(new Error('SyntaxError: unexpected token')),
+      parsing: { parseWorkflowFile: vi.fn().mockRejectedValue(new Error('SyntaxError: unexpected token')) },
     });
 
     const result = await interpret(baseRequest, deps);
@@ -786,12 +842,14 @@ describe('interpret() — error conditions (T022)', () => {
   it('returns error diagnostic when execution fails to start', async () => {
     const callTool = vi.fn();
     const deps = createMockDeps({
-      detectCapabilities: vi.fn().mockResolvedValue({
-        level: 'mcp',
-        mcpAvailable: true,
-        mcpTools: ['test_workflow'],
-      }),
-      executeSmoke: vi.fn().mockRejectedValue(new Error('Workflow not found on n8n')),
+      execution: {
+        detectCapabilities: vi.fn().mockResolvedValue({
+          level: 'mcp',
+          mcpAvailable: true,
+          mcpTools: ['test_workflow'],
+        }),
+        executeSmoke: vi.fn().mockRejectedValue(new Error('Workflow not found on n8n')),
+      },
     });
 
     const request: ValidationRequest = {
@@ -808,9 +866,11 @@ describe('interpret() — error conditions (T022)', () => {
 
   it('propagates static analysis internal errors (does not catch)', async () => {
     const deps = createMockDeps({
-      traceExpressions: vi.fn().mockImplementation(() => {
-        throw new Error('Internal static analysis bug');
-      }),
+      analysis: {
+        traceExpressions: vi.fn().mockImplementation(() => {
+          throw new Error('Internal static analysis bug');
+        }),
+      },
     });
 
     // traceExpressions is called in step 5 (guardrail evaluation input),
@@ -820,7 +880,7 @@ describe('interpret() — error conditions (T022)', () => {
 
   it('error diagnostic includes valid meta with runId', async () => {
     const deps = createMockDeps({
-      parseWorkflowFile: vi.fn().mockRejectedValue(new Error('fail')),
+      parsing: { parseWorkflowFile: vi.fn().mockRejectedValue(new Error('fail')) },
     });
 
     const result = await interpret(baseRequest, deps);
@@ -836,11 +896,13 @@ describe('interpret() — MCP smoke test path', () => {
   it('dispatches via executeSmoke when mcpAvailable and target=workflow', async () => {
     const callTool = vi.fn();
     const deps = createMockDeps({
-      detectCapabilities: vi.fn().mockResolvedValue({
-        level: 'mcp',
-        mcpAvailable: true,
-        mcpTools: ['test_workflow'],
-      }),
+      execution: {
+        detectCapabilities: vi.fn().mockResolvedValue({
+          level: 'mcp',
+          mcpAvailable: true,
+          mcpTools: ['test_workflow'],
+        }),
+      },
     });
 
     const request: ValidationRequest = {
@@ -854,7 +916,7 @@ describe('interpret() — MCP smoke test path', () => {
 
     await interpret(request, deps);
 
-    expect(deps.executeSmoke).toHaveBeenCalledWith(
+    expect(deps.execution.executeSmoke).toHaveBeenCalledWith(
       expect.any(String),
       expect.any(Object),
       callTool,
@@ -866,11 +928,13 @@ describe('interpret() — n8nWorkflowId routing (US1)', () => {
   it('execution calls receive ast.metadata.id (UUID), not file-path workflowId', async () => {
     const callTool = vi.fn();
     const deps = createMockDeps({
-      detectCapabilities: vi.fn().mockResolvedValue({
-        level: 'mcp',
-        mcpAvailable: true,
-        mcpTools: ['test_workflow'],
-      }),
+      execution: {
+        detectCapabilities: vi.fn().mockResolvedValue({
+          level: 'mcp',
+          mcpAvailable: true,
+          mcpTools: ['test_workflow'],
+        }),
+      },
     });
 
     const request: ValidationRequest = {
@@ -884,8 +948,7 @@ describe('interpret() — n8nWorkflowId routing (US1)', () => {
 
     await interpret(request, deps);
 
-    // executeSmoke should receive the n8n UUID, not the file path
-    expect(deps.executeSmoke).toHaveBeenCalledWith(
+    expect(deps.execution.executeSmoke).toHaveBeenCalledWith(
       'n8n-uuid-123',
       expect.any(Object),
       callTool,
@@ -900,7 +963,7 @@ describe('interpret() — n8nWorkflowId routing (US1)', () => {
       '',
     );
     const deps = createMockDeps({
-      buildGraph: vi.fn().mockReturnValue(graphWithEmptyId),
+      parsing: { buildGraph: vi.fn().mockReturnValue(graphWithEmptyId) },
     });
 
     const request: ValidationRequest = {
@@ -923,7 +986,7 @@ describe('interpret() — n8nWorkflowId routing (US1)', () => {
       '',
     );
     const deps = createMockDeps({
-      buildGraph: vi.fn().mockReturnValue(graphWithEmptyId),
+      parsing: { buildGraph: vi.fn().mockReturnValue(graphWithEmptyId) },
     });
 
     const request: ValidationRequest = {
@@ -952,8 +1015,7 @@ describe('interpret() — n8nWorkflowId routing (US1)', () => {
 
     await interpret(request, deps);
 
-    // loadTrustState and loadSnapshot should receive the file-path-based ID
-    const trustCall = vi.mocked(deps.loadTrustState).mock.calls[0]![0];
+    const trustCall = vi.mocked(deps.trust.loadTrustState).mock.calls[0]![0];
     expect(trustCall).not.toBe('n8n-uuid-123');
     expect(trustCall).toContain('workflow.ts');
   });
@@ -966,7 +1028,7 @@ describe('interpret() — n8nWorkflowId routing (US1)', () => {
       '',
     );
     const deps = createMockDeps({
-      buildGraph: vi.fn().mockReturnValue(graphWithEmptyId),
+      parsing: { buildGraph: vi.fn().mockReturnValue(graphWithEmptyId) },
     });
 
     const request: ValidationRequest = {
@@ -989,7 +1051,7 @@ describe('interpret() — n8nWorkflowId routing (US1)', () => {
       '   ',
     );
     const deps = createMockDeps({
-      buildGraph: vi.fn().mockReturnValue(graphWithWhitespaceId),
+      parsing: { buildGraph: vi.fn().mockReturnValue(graphWithWhitespaceId) },
     });
 
     const request: ValidationRequest = {

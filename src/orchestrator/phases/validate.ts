@@ -7,7 +7,7 @@ import type { ExpressionReference, StaticFinding } from '../../static-analysis/t
 import type { ResolvedTarget } from '../../types/diagnostic.js';
 import type { WorkflowGraph } from '../../types/graph.js';
 import type { PathDefinition } from '../../types/slice.js';
-import type { OrchestratorDeps } from '../types.js';
+import type { AnalysisDeps } from '../types.js';
 
 /**
  * Run static analysis for validate-tool requests.
@@ -20,10 +20,7 @@ export function runStaticAnalysis(
   paths: PathDefinition[],
   resolvedTarget: ResolvedTarget,
   expressionRefs: ExpressionReference[],
-  deps: Pick<
-    OrchestratorDeps,
-    'detectDataLoss' | 'checkSchemas' | 'validateNodeParams' | 'traceExpressions'
-  >,
+  deps: AnalysisDeps,
 ): StaticFinding[] {
   const findings: StaticFinding[] = [];
 

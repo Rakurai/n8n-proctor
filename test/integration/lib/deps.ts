@@ -23,9 +23,15 @@ export function buildTestDeps(trustDir: string, snapshotDir: string): Orchestrat
 
   return {
     ...deps,
-    loadTrustState: (workflowId: string) => loadTrustState(workflowId, trustDir),
-    persistTrustState: (state, workflowHash) => persistTrustState(state, workflowHash, trustDir),
-    loadSnapshot: (workflowId: string) => loadSnapshot(workflowId, snapshotDir),
-    saveSnapshot: (workflowId, graph) => saveSnapshot(workflowId, graph, snapshotDir),
+    trust: {
+      ...deps.trust,
+      loadTrustState: (workflowId: string) => loadTrustState(workflowId, trustDir),
+      persistTrustState: (state, workflowHash) => persistTrustState(state, workflowHash, trustDir),
+    },
+    snapshots: {
+      ...deps.snapshots,
+      loadSnapshot: (workflowId: string) => loadSnapshot(workflowId, snapshotDir),
+      saveSnapshot: (workflowId, graph) => saveSnapshot(workflowId, graph, snapshotDir),
+    },
   };
 }

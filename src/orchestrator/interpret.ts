@@ -13,7 +13,8 @@ import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import stringify from 'json-stable-stringify';
 import { ExecutionPreconditionError } from '../execution/errors.js';
-import type { PinData } from '../execution/types.js';
+import { buildExecutionInternalDeps, prepareExecution } from '../execution/prepare.js';
+import type { ExecutionPreparationResult, PinData } from '../execution/types.js';
 import type { EvaluationInput } from '../guardrails/types.js';
 import { computeNodeHashes } from '../trust/hash.js';
 import type { DiagnosticSummary, ValidationMeta } from '../types/diagnostic.js';
@@ -22,7 +23,6 @@ import type { GuardrailDecision } from '../types/guardrail.js';
 import type { NodeIdentity } from '../types/identity.js';
 import type { NodeChangeSet } from '../types/trust.js';
 import { selectPaths } from './path.js';
-import { runExecution } from './phases/execute.js';
 import { persistResults } from './phases/persist.js';
 import { buildSynthesis } from './phases/synthesize.js';
 import { runStaticAnalysis } from './phases/validate.js';
@@ -57,9 +57,11 @@ export async function interpret(
   let graph: WorkflowGraph;
   let n8nWorkflowId: string;
   try {
-    const ast = await deps.parseWorkflowFile(request.workflowPath);
-    graph = deps.buildGraph(ast);
-    n8nWorkflowId = graph.ast.metadata.id.trim();
+    const ast = await deps.parsing.parseWorkflowFile(request.workflowPath);
+    graph = deps.parsing.buildGraph(ast);
+    // buildGraph always produces a full WorkflowAST — narrow past SnapshotAST union
+    const fullAst = graph.ast as import('@n8n-as-code/transformer').WorkflowAST;
+    n8nWorkflowId = fullAst.metadata.id.trim();
   } catch (err) {
     return errorDiagnostic(
       `Failed to parse workflow: ${err instanceof Error ? err.message : String(err)}`,
@@ -70,15 +72,15 @@ export async function interpret(
 
   // ── Step 2: Load trust state ────────────────────────────────────
   const workflowId = deriveWorkflowId(request.workflowPath);
-  const trustState = deps.loadTrustState(workflowId);
+  const trustState = deps.trust.loadTrustState(workflowId);
 
   // ── Step 3: Compute change set ──────────────────────────────────
   let changeSet: NodeChangeSet | null = null;
-  const previousGraph = deps.loadSnapshot(workflowId);
+  const previousGraph = deps.snapshots.loadSnapshot(workflowId);
   let activeTrust = trustState;
   if (previousGraph) {
-    changeSet = deps.computeChangeSet(previousGraph, graph);
-    activeTrust = deps.invalidateTrust(trustState, changeSet, graph);
+    changeSet = deps.trust.computeChangeSet(previousGraph, graph);
+    activeTrust = deps.trust.invalidateTrust(trustState, changeSet, graph);
   }
 
   // ── Step 4: Resolve target ──────────────────────────────────────
@@ -91,7 +93,7 @@ export async function interpret(
   let paths = selectPaths(slice, graph, changeSet, activeTrust);
 
   // ── Step 5: Consult guardrails ──────────────────────────────────
-  const expressionRefs = deps.traceExpressions(graph, resolvedTarget.nodes);
+  const expressionRefs = deps.analysis.traceExpressions(graph, resolvedTarget.nodes);
 
   const currentHashes = computeNodeHashes(graph, resolvedTarget.nodes);
   const fixtureHash = request.pinData ? hashPinData(request.pinData) : null;
@@ -111,7 +113,7 @@ export async function interpret(
     fixtureHash,
   };
 
-  const guardrailDecision = deps.evaluate(evaluationInput);
+  const guardrailDecision = deps.guardrails.evaluate(evaluationInput);
   const guardrailDecisions: GuardrailDecision[] = [guardrailDecision];
 
   // Route on guardrail action
@@ -135,28 +137,32 @@ export async function interpret(
   // ── Step 6a: Static analysis (validate tool only) ───────────────
   const staticFindings =
     request.tool === 'validate'
-      ? runStaticAnalysis(graph, paths, resolvedTarget, expressionRefs, deps)
+      ? runStaticAnalysis(graph, paths, resolvedTarget, expressionRefs, deps.analysis)
       : [];
 
   // ── Step 6b: Execution (test tool only) ─────────────────────────
-  let executionResult = {
-    executionData: null as import('../diagnostics/types.js').ExecutionData | null,
-    executionErrors: [] as import('./phases/execute.js').ExecutionError[],
-    executionId: null as string | null,
-    capabilities: { staticAnalysis: true as const, mcpTools: false },
-    usedPinData: null as PinData | null,
+  let executionResult: ExecutionPreparationResult = {
+    executionData: null,
+    executionErrors: [],
+    warnings: [],
+    executionId: null,
+    capabilities: { staticAnalysis: true, mcpTools: false },
+    usedPinData: null,
   };
 
   if (request.tool === 'test') {
     try {
-      executionResult = await runExecution(
-        n8nWorkflowId,
-        workflowId,
-        graph,
-        resolvedTarget,
-        activeTrust,
-        { callTool: request.callTool, pinData: request.pinData },
-        deps,
+      executionResult = await prepareExecution(
+        {
+          n8nWorkflowId,
+          workflowId,
+          graph,
+          trustState: activeTrust,
+          resolvedTarget,
+          ...(request.callTool ? { callTool: request.callTool } : {}),
+          pinData: request.pinData,
+        },
+        buildExecutionInternalDeps(deps.execution),
       );
     } catch (err) {
       if (err instanceof ExecutionPreconditionError) throw err;
@@ -188,18 +194,25 @@ export async function interpret(
     deps,
   );
 
+  // Surface execution warnings as info-severity hints
+  for (const warning of executionResult.warnings) {
+    summary.hints.push({ node: null, message: warning, severity: 'info' });
+  }
+
   // ── Steps 8-9: Persist ──────────────────────────────────────────
   await persistResults(
-    summary,
-    activeTrust,
-    graph,
-    workflowId,
-    request.tool,
-    runId,
-    fixtureHash,
-    paths,
-    resolvedTarget,
-    executionResult.usedPinData,
+    {
+      summary,
+      activeTrust,
+      graph,
+      workflowId,
+      tool: request.tool,
+      runId,
+      fixtureHash,
+      paths,
+      resolvedTarget,
+      usedPinData: executionResult.usedPinData,
+    },
     deps,
   );
 

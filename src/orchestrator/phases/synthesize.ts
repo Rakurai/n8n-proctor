@@ -4,6 +4,7 @@
  */
 
 import type { ExecutionData } from '../../diagnostics/types.js';
+import type { ExecutionPreparationError } from '../../execution/types.js';
 import type { StaticFinding } from '../../static-analysis/types.js';
 import type {
   AvailableCapabilities,
@@ -14,7 +15,6 @@ import type {
 import type { GuardrailDecision } from '../../types/guardrail.js';
 import type { TrustState } from '../../types/trust.js';
 import type { OrchestratorDeps } from '../types.js';
-import type { ExecutionError } from './execute.js';
 
 /**
  * Deduplicate findings, synthesize diagnostics, and append execution errors.
@@ -22,13 +22,13 @@ import type { ExecutionError } from './execute.js';
 export function buildSynthesis(
   staticFindings: StaticFinding[],
   executionData: ExecutionData | null,
-  executionErrors: ExecutionError[],
+  executionErrors: ExecutionPreparationError[],
   activeTrust: TrustState,
   guardrailDecisions: GuardrailDecision[],
   resolvedTarget: ResolvedTarget,
   capabilities: AvailableCapabilities,
   meta: ValidationMeta,
-  deps: Pick<OrchestratorDeps, 'synthesize'>,
+  deps: Pick<OrchestratorDeps, 'diagnostics'>,
 ): DiagnosticSummary {
   // Deduplicate static findings by (node, kind, message)
   const seen = new Set<string>();
@@ -39,7 +39,7 @@ export function buildSynthesis(
     return true;
   });
 
-  const summary = deps.synthesize({
+  const summary = deps.diagnostics.synthesize({
     staticFindings: deduplicatedFindings,
     executionData,
     trustState: activeTrust,

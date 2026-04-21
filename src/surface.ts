@@ -25,12 +25,12 @@ export async function buildTrustStatusReport(
   workflowPath: string,
   deps: OrchestratorDeps,
 ): Promise<TrustStatusReport> {
-  const ast = await deps.parseWorkflowFile(workflowPath);
-  const graph = deps.buildGraph(ast);
+  const ast = await deps.parsing.parseWorkflowFile(workflowPath);
+  const graph = deps.parsing.buildGraph(ast);
   const workflowId = deriveWorkflowId(workflowPath);
-  const trustState = deps.loadTrustState(workflowId);
-  const snapshot = deps.loadSnapshot(workflowId);
-  const changeSet = snapshot ? deps.computeChangeSet(snapshot, graph) : null;
+  const trustState = deps.trust.loadTrustState(workflowId);
+  const snapshot = deps.snapshots.loadSnapshot(workflowId);
+  const changeSet = snapshot ? deps.trust.computeChangeSet(snapshot, graph) : null;
 
   const trustedNodes: TrustedNodeInfo[] = [];
   const untrustedNodes: UntrustedNodeInfo[] = [];
@@ -79,13 +79,13 @@ export async function buildGuardrailExplanation(
   tool: 'validate' | 'test',
   deps: OrchestratorDeps,
 ): Promise<GuardrailExplanation> {
-  const ast = await deps.parseWorkflowFile(workflowPath);
-  const graph = deps.buildGraph(ast);
+  const ast = await deps.parsing.parseWorkflowFile(workflowPath);
+  const graph = deps.parsing.buildGraph(ast);
   const workflowId = deriveWorkflowId(workflowPath);
-  const trustState = deps.loadTrustState(workflowId);
-  const snapshot = deps.loadSnapshot(workflowId);
+  const trustState = deps.trust.loadTrustState(workflowId);
+  const snapshot = deps.snapshots.loadSnapshot(workflowId);
   const changeSet = snapshot
-    ? deps.computeChangeSet(snapshot, graph)
+    ? deps.trust.computeChangeSet(snapshot, graph)
     : {
         added: [...graph.nodes.keys()] as NodeIdentity[],
         removed: [],
@@ -136,8 +136,8 @@ export async function buildGuardrailExplanation(
     fixtureHash: null,
   };
 
-  const guardrailDecision = deps.evaluate(evaluationInput);
-  const capabilities = await deps.detectCapabilities();
+  const guardrailDecision = deps.guardrails.evaluate(evaluationInput);
+  const capabilities = await deps.execution.detectCapabilities();
 
   const explanation: GuardrailExplanation = {
     guardrailDecision,
@@ -153,7 +153,8 @@ export async function buildGuardrailExplanation(
   };
 
   if (tool === 'test') {
-    const metadataId = (graph.ast.metadata.id ?? '').trim();
+    const fullAst = graph.ast as import('@n8n-as-code/transformer').WorkflowAST;
+    const metadataId = (fullAst.metadata.id ?? '').trim();
     explanation.preconditions = {
       mcpAvailable: capabilities.mcpAvailable,
       metadataIdPresent: metadataId.length > 0,

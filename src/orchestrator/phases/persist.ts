@@ -13,29 +13,35 @@ import type { PathDefinition } from '../../types/slice.js';
 import type { TrustState } from '../../types/trust.js';
 import type { OrchestratorDeps } from '../types.js';
 
+/** Context for the persistence phase. */
+export interface PersistContext {
+  summary: DiagnosticSummary;
+  activeTrust: TrustState;
+  graph: WorkflowGraph;
+  workflowId: string;
+  tool: 'validate' | 'test';
+  runId: string;
+  fixtureHash: string | null;
+  paths: PathDefinition[];
+  resolvedTarget: ResolvedTarget;
+  usedPinData: PinData | null;
+}
+
 /**
  * Persist validation results: update trust state, save snapshot, cache pin data.
  *
  * Only runs when the summary status is 'pass'.
  */
 export async function persistResults(
-  summary: DiagnosticSummary,
-  activeTrust: TrustState,
-  graph: WorkflowGraph,
-  workflowId: string,
-  tool: 'validate' | 'test',
-  runId: string,
-  fixtureHash: string | null,
-  paths: PathDefinition[],
-  resolvedTarget: ResolvedTarget,
-  usedPinData: PinData | null,
-  deps: Pick<OrchestratorDeps, 'recordValidation' | 'persistTrustState' | 'saveSnapshot'>,
+  ctx: PersistContext,
+  deps: Pick<OrchestratorDeps, 'trust' | 'snapshots'>,
 ): Promise<void> {
+  const { summary, activeTrust, graph, workflowId, tool, runId, fixtureHash, paths, resolvedTarget, usedPinData } = ctx;
   if (summary.status !== 'pass') return;
 
   // Record trust for nodes that were actually validated
   const validatedNodes = collectValidatedNodes(paths, resolvedTarget.nodes);
-  const updatedTrust = deps.recordValidation(
+  const updatedTrust = deps.trust.recordValidation(
     activeTrust,
     validatedNodes,
     graph,
@@ -43,10 +49,10 @@ export async function persistResults(
     runId,
     fixtureHash,
   );
-  deps.persistTrustState(updatedTrust, computeWorkflowHash(graph));
+  deps.trust.persistTrustState(updatedTrust, computeWorkflowHash(graph));
 
   // Save snapshot
-  deps.saveSnapshot(workflowId, graph);
+  deps.snapshots.saveSnapshot(workflowId, graph);
 
   // Cache used pin data for future tier 2 sourcing
   if (usedPinData) {

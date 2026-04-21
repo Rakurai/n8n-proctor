@@ -8,12 +8,11 @@
 import type { WorkflowGraph } from '../types/graph.js';
 import type { NodeIdentity } from '../types/identity.js';
 import type { ValidationEvidence } from '../types/target.js';
-import type { ChangeKind, NodeChangeSet, NodeTrustRecord, TrustState } from '../types/trust.js';
+import type { NodeChangeSet, NodeTrustRecord, TrustState } from '../types/trust.js';
+import { TRUST_PRESERVING } from './constants.js';
 import { TrustRecordingError } from './errors.js';
 import { computeContentHash } from './hash.js';
 import type { RerunAssessment } from './types.js';
-
-const TRUST_PRESERVING: ReadonlySet<ChangeKind> = new Set(['metadata-only']);
 
 // ── Derivation (US2) ────────────────────────────────────────────────
 

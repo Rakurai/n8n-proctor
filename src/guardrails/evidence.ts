@@ -5,13 +5,11 @@
  * (except lastValidatedAt which is null when no nodes are trusted).
  */
 
+import { TRUST_PRESERVING } from '../trust/constants.js';
 import { isTrusted } from '../trust/trust.js';
 import type { GuardrailEvidence } from '../types/guardrail.js';
 import type { NodeIdentity } from '../types/identity.js';
-import type { ChangeKind } from '../types/trust.js';
 import type { EvaluationInput } from './types.js';
-
-const TRUST_PRESERVING: ReadonlySet<ChangeKind> = new Set(['metadata-only']);
 
 /**
  * Assemble evidence for a guardrail decision from the evaluation input.

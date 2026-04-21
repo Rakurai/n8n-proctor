@@ -38,7 +38,13 @@ export { TrustPersistenceError, ContentHashError } from './trust/errors.js';
 // Type re-exports — grouped by domain
 export type { NodeIdentity } from './types/identity.js';
 
-export type { WorkflowGraph, GraphNode, Edge, NodeClassification } from './types/graph.js';
+export type {
+  WorkflowGraph,
+  GraphNode,
+  Edge,
+  NodeClassification,
+  SnapshotAST,
+} from './types/graph.js';
 
 export type { SliceDefinition, PathDefinition, PathEdge } from './types/slice.js';
 
@@ -122,6 +128,13 @@ export type {
   ValidationRequest,
   InterpretedRequest,
   OrchestratorDeps,
+  ParsingDeps,
+  TrustDeps,
+  GuardrailDeps,
+  AnalysisDeps,
+  ExecutionDeps,
+  DiagnosticsDeps,
+  SnapshotDeps,
   WorkflowSnapshot,
 } from './orchestrator/types.js';
 export { ValidationRequestSchema, deriveWorkflowId } from './orchestrator/types.js';

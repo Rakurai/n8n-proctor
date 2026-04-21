@@ -95,12 +95,7 @@ function validatePathBoundary(workflowPath: string): string {
 // ── Server factory ───────────────────────────────────────────────
 
 /** Create an MCP server with all four n8n-proctor tools registered. */
-export function createServer(
-  deps: OrchestratorDeps,
-  callTool?: McpToolCaller,
-  n8nHost?: string,
-  n8nApiKey?: string,
-): McpServer {
+export function createServer(deps: OrchestratorDeps, callTool?: McpToolCaller): McpServer {
   const server = new McpServer({ name: 'n8n-proctor', version: '0.1.0' });
 
   // ── validate ─────────────────────────────────────────────────
@@ -151,8 +146,6 @@ export function createServer(
           force: args.force ?? false,
           pinData: args.pinData ?? null,
           ...(callTool ? { callTool } : {}),
-          ...(n8nHost ? { n8nHost } : {}),
-          ...(n8nApiKey ? { n8nApiKey } : {}),
         };
         const summary = await interpret(request, deps);
         return wrapSuccess(summary);

@@ -4,10 +4,16 @@
  * sub-classified change kinds), or unchanged.
  */
 
+import stringify from 'json-stable-stringify';
 import type { Edge, GraphNode, WorkflowGraph } from '../types/graph.js';
 import type { NodeIdentity } from '../types/identity.js';
 import type { ChangeKind, NodeChangeSet, NodeModification } from '../types/trust.js';
 import { computeConnectionsHash, computeContentHash, computeWorkflowHash } from './hash.js';
+
+/** Order-independent deep equality for JSON-serializable values. */
+function structuredEqual(a: unknown, b: unknown): boolean {
+  return stringify(a) === stringify(b);
+}
 
 /**
  * Compute the diff between two workflow snapshots.
@@ -129,7 +135,7 @@ function classifyChanges(
   }
 
   // Credential change
-  if (JSON.stringify(prevNode.credentials) !== JSON.stringify(currNode.credentials)) {
+  if (!structuredEqual(prevNode.credentials, currNode.credentials)) {
     changes.push('credential');
   }
 
@@ -139,7 +145,7 @@ function classifyChanges(
   }
 
   // Parameter change + expression change detection
-  if (JSON.stringify(prevNode.parameters) !== JSON.stringify(currNode.parameters)) {
+  if (!structuredEqual(prevNode.parameters, currNode.parameters)) {
     changes.push('parameter');
 
     // Check for expression changes (research R4)
@@ -184,7 +190,7 @@ function executionSettingsChanged(
     onError: currAst?.onError ?? null,
   };
 
-  return JSON.stringify(prevSettings) !== JSON.stringify(currSettings);
+  return !structuredEqual(prevSettings, currSettings);
 }
 
 /** Recursively collect all expression strings (={{ ... }}) from a parameter tree. */

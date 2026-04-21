@@ -9,7 +9,7 @@
 import { createHash } from 'node:crypto';
 import type { WorkflowAST } from '@n8n-as-code/transformer';
 import stringify from 'json-stable-stringify';
-import type { GraphNode, WorkflowGraph } from '../types/graph.js';
+import type { GraphNode, SnapshotAST, WorkflowGraph } from '../types/graph.js';
 import type { NodeIdentity } from '../types/identity.js';
 import { ContentHashError } from './errors.js';
 
@@ -22,7 +22,7 @@ import { ContentHashError } from './errors.js';
  *
  * @throws {ContentHashError} if canonical serialization fails.
  */
-export function computeContentHash(node: GraphNode, ast: WorkflowAST): string {
+export function computeContentHash(node: GraphNode, ast: WorkflowAST | SnapshotAST): string {
   try {
     // Find matching NodeAST to extract execution settings (research R3)
     const nodeAst = ast.nodes.find((n) => n.propertyName === node.name);

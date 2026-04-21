@@ -8,6 +8,7 @@
  */
 
 import type { NodeIdentity } from '../types/identity.js';
+import type { McpToolCaller } from './mcp-client.js';
 
 // ---------------------------------------------------------------------------
 // Pin Data
@@ -129,4 +130,91 @@ export interface DetectedCapabilities {
   level: CapabilityLevel;
   mcpAvailable: boolean;
   mcpTools: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Execution Preparation (extracted from orchestrator)
+// ---------------------------------------------------------------------------
+
+/** Input for the execution preparation API. */
+export interface ExecutionPreparationInput {
+  /** n8n workflow ID from AST metadata. */
+  n8nWorkflowId: string;
+  /** Project-relative workflow ID for local persistence. */
+  workflowId: string;
+  /** Parsed workflow graph. */
+  graph: import('../types/graph.js').WorkflowGraph;
+  /** Active trust state after invalidation. */
+  trustState: import('../types/trust.js').TrustState;
+  /** Resolved validation target. */
+  resolvedTarget: import('../types/diagnostic.js').ResolvedTarget;
+  /** MCP tool caller, if available. */
+  callTool?: McpToolCaller;
+  /** Agent-provided pin data (tier 1). */
+  pinData: PinData | null;
+}
+
+/** Result from execution preparation. */
+export interface ExecutionPreparationResult {
+  /** Per-node execution data from completed run, or null if no execution. */
+  executionData: import('../diagnostics/types.js').ExecutionData | null;
+  /** Execution errors encountered. */
+  executionErrors: ExecutionPreparationError[];
+  /** Non-fatal warnings (e.g. MCP tier-3 unavailable). Visible but not status-flipping. */
+  warnings: string[];
+  /** Pin data that was actually used for execution. */
+  usedPinData: PinData | null;
+  /** Detected capabilities of the execution environment. */
+  capabilities: import('../types/diagnostic.js').AvailableCapabilities;
+  /** Execution ID from MCP, or null. */
+  executionId: string | null;
+}
+
+/** Structured execution error from the preparation phase. */
+export interface ExecutionPreparationError {
+  type: string;
+  message: string;
+  description: null;
+  node: NodeIdentity | null;
+  classification: 'platform';
+  context: Record<string, never>;
+}
+
+/** Injectable dependencies for execution preparation (testability seam). */
+export interface ExecutionInternalDeps {
+  executeSmoke: (
+    workflowId: string,
+    pinData: PinData,
+    callTool: McpToolCaller,
+    triggerNodeName?: string,
+  ) => Promise<ExecutionResult>;
+  constructPinData: (
+    graph: import('../types/graph.js').WorkflowGraph,
+    trustedBoundaries: NodeIdentity[],
+    fixtures?: Record<string, PinDataItem[]>,
+    priorArtifacts?: Record<string, PinDataItem[]>,
+    mcpPinData?: Record<string, PinDataItem[]>,
+  ) => PinDataResult;
+  detectCapabilities: (options?: {
+    callTool?: McpToolCaller;
+  }) => Promise<DetectedCapabilities>;
+  readCachedPinData: (workflowId: string, nodeHash: string) => Promise<PinDataItem[] | undefined>;
+  preparePinData: (
+    workflowId: string,
+    callTool: McpToolCaller,
+  ) => Promise<import('./mcp-client.js').PreparePinDataResult>;
+  getExecution: (
+    workflowId: string,
+    executionId: string,
+    callTool: McpToolCaller,
+    options?: { includeData?: boolean; nodeNames?: string[]; truncateData?: number },
+  ) => Promise<{
+    status: import('./types.js').ExecutionStatus;
+    data?: import('../diagnostics/types.js').ExecutionData;
+  }>;
+  generateSampleFromSchema: (schema: Record<string, unknown>) => Record<string, unknown>;
+  computeNodeHashes: (
+    graph: import('../types/graph.js').WorkflowGraph,
+    nodes: NodeIdentity[],
+  ) => Map<NodeIdentity, string>;
 }
