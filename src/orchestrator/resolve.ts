@@ -8,6 +8,7 @@
  * - `workflow`: all nodes in the graph
  */
 
+import { classifyBoundaries, traverse } from '../static-analysis/traversal.js';
 import { computeContentHash } from '../trust/hash.js';
 import { isTrusted as isTrustedCanonical } from '../trust/trust.js';
 import type { ResolvedTarget } from '../types/diagnostic.js';
@@ -67,23 +68,19 @@ function resolveNodes(
   }
 
   const seedNodes = new Set(names);
-  const sliceNodes = new Set(names);
+  const shouldStop = makeTrustPredicate(trustState, graph);
 
   // Forward-propagate to exits (stops at trust boundaries)
-  const exitPoints: NodeIdentity[] = [];
-  for (const name of names) {
-    propagateForward(name, graph, sliceNodes, exitPoints, trustState);
-  }
-
+  const forwardResult = traverse(names, graph, 'forward', shouldStop);
   // Backward-walk to entry points (triggers, graph roots, or trust boundaries)
-  const entryPoints: NodeIdentity[] = [];
-  for (const name of names) {
-    propagateBackward(name, graph, sliceNodes, entryPoints, trustState);
-  }
+  const backwardResult = traverse(names, graph, 'backward', shouldStop);
 
-  // Deduplicate entry/exit
-  const uniqueEntries = [...new Set(entryPoints)];
-  const uniqueExits = [...new Set(exitPoints)];
+  // Merge all visited nodes
+  const sliceNodes = new Set<NodeIdentity>(names);
+  for (const n of forwardResult.visited) sliceNodes.add(n);
+  for (const n of backwardResult.visited) sliceNodes.add(n);
+
+  const { entryPoints, exitPoints } = classifyBoundaries(sliceNodes, graph);
 
   return {
     ok: true,
@@ -95,8 +92,8 @@ function resolveNodes(
     slice: {
       nodes: sliceNodes,
       seedNodes,
-      entryPoints: uniqueEntries,
-      exitPoints: uniqueExits,
+      entryPoints,
+      exitPoints,
     },
   };
 }
@@ -152,20 +149,16 @@ function resolveChanged(
   }
 
   const seedNodes = new Set(seedNames);
-  const sliceNodes = new Set(seedNames);
+  const shouldStop = makeTrustPredicate(trustState, graph);
 
-  const exitPoints: NodeIdentity[] = [];
-  for (const name of seedNames) {
-    propagateForward(name, graph, sliceNodes, exitPoints, trustState);
-  }
+  const forwardResult = traverse(seedNames, graph, 'forward', shouldStop);
+  const backwardResult = traverse(seedNames, graph, 'backward', shouldStop);
 
-  const entryPoints: NodeIdentity[] = [];
-  for (const name of seedNames) {
-    propagateBackward(name, graph, sliceNodes, entryPoints, trustState);
-  }
+  const sliceNodes = new Set<NodeIdentity>(seedNames);
+  for (const n of forwardResult.visited) sliceNodes.add(n);
+  for (const n of backwardResult.visited) sliceNodes.add(n);
 
-  const uniqueEntries = [...new Set(entryPoints)];
-  const uniqueExits = [...new Set(exitPoints)];
+  const { entryPoints, exitPoints } = classifyBoundaries(sliceNodes, graph);
 
   return {
     ok: true,
@@ -177,8 +170,8 @@ function resolveChanged(
     slice: {
       nodes: sliceNodes,
       seedNodes,
-      entryPoints: uniqueEntries,
-      exitPoints: uniqueExits,
+      entryPoints,
+      exitPoints,
     },
   };
 }
@@ -212,22 +205,8 @@ function approximateChanges(graph: WorkflowGraph, trustState: TrustState): NodeI
 
 function resolveWorkflow(graph: WorkflowGraph): ResolveResult {
   const allNodes: NodeIdentity[] = [...graph.nodes.keys()];
-
-  // Entry points: nodes with no incoming edges (triggers/roots)
-  const entryPoints: NodeIdentity[] = [];
-  // Exit points: nodes with no outgoing edges (terminals)
-  const exitPoints: NodeIdentity[] = [];
-
-  for (const name of allNodes) {
-    const incoming = graph.backward.get(name);
-    if (!incoming || incoming.length === 0) {
-      entryPoints.push(name);
-    }
-    const outgoing = graph.forward.get(name);
-    if (!outgoing || outgoing.length === 0) {
-      exitPoints.push(name);
-    }
-  }
+  const nodeSet = new Set(allNodes);
+  const { entryPoints, exitPoints } = classifyBoundaries(nodeSet, graph);
 
   return {
     ok: true,
@@ -237,93 +216,25 @@ function resolveWorkflow(graph: WorkflowGraph): ResolveResult {
       automatic: false,
     },
     slice: {
-      nodes: new Set(allNodes),
-      seedNodes: new Set(allNodes),
+      nodes: nodeSet,
+      seedNodes: nodeSet,
       entryPoints,
       exitPoints,
     },
   };
 }
 
-// ── graph traversal helpers ───────────────────────────────────────
+// ── trust predicate ──────────────────────────────────────────────
 
-/** Forward-propagate from a node through graph.forward until exit or trusted boundary. */
-function propagateForward(
-  startName: NodeIdentity,
+/** Build a stopping predicate that halts traversal at trusted boundaries. */
+function makeTrustPredicate(
+  trustState: TrustState,
   graph: WorkflowGraph,
-  sliceNodes: Set<NodeIdentity>,
-  exitPoints: NodeIdentity[],
-  trustState?: TrustState,
-): void {
-  const visited = new Set<NodeIdentity>();
-  const stack: NodeIdentity[] = [startName];
-
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (current === undefined) break;
-    if (visited.has(current)) continue;
-    visited.add(current);
-
-    const edges = graph.forward.get(current);
-    if (!edges || edges.length === 0) {
-      exitPoints.push(current);
-      continue;
-    }
-
-    for (const edge of edges) {
-      const downstream = edge.to;
-      // Stop at trusted boundaries (for change-driven slicing)
-      if (trustState && isTrusted(downstream, trustState, graph)) {
-        exitPoints.push(downstream);
-        sliceNodes.add(downstream);
-        continue;
-      }
-      sliceNodes.add(downstream);
-      stack.push(downstream);
-    }
-  }
-}
-
-/** Backward-walk from a node through graph.backward to triggers or trusted boundaries. */
-function propagateBackward(
-  startName: NodeIdentity,
-  graph: WorkflowGraph,
-  sliceNodes: Set<NodeIdentity>,
-  entryPoints: NodeIdentity[],
-  trustState?: TrustState,
-): void {
-  const visited = new Set<NodeIdentity>();
-  const stack: NodeIdentity[] = [startName];
-
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (current === undefined) break;
-    if (visited.has(current)) continue;
-    visited.add(current);
-
-    const edges = graph.backward.get(current);
-    if (!edges || edges.length === 0) {
-      entryPoints.push(current);
-      continue;
-    }
-
-    for (const edge of edges) {
-      const upstream = edge.from;
-      // Stop at trusted boundaries
-      if (trustState && isTrusted(upstream, trustState, graph)) {
-        entryPoints.push(upstream);
-        sliceNodes.add(upstream);
-        continue;
-      }
-      sliceNodes.add(upstream);
-      stack.push(upstream);
-    }
-  }
-}
-
-function isTrusted(nodeId: NodeIdentity, trustState: TrustState, graph: WorkflowGraph): boolean {
-  const node = graph.nodes.get(nodeId);
-  if (!node) return false;
-  const hash = computeContentHash(node, graph.ast);
-  return isTrustedCanonical(trustState, nodeId, hash);
+): (node: NodeIdentity) => boolean {
+  return (node: NodeIdentity) => {
+    const graphNode = graph.nodes.get(node);
+    if (!graphNode) return false;
+    const hash = computeContentHash(graphNode, graph.ast);
+    return isTrustedCanonical(trustState, node, hash);
+  };
 }

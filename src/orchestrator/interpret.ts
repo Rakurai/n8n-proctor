@@ -2,6 +2,9 @@
  * The 10-step orchestration pipeline — receives a ValidationRequest and
  * coordinates all five internal subsystems to produce a DiagnosticSummary.
  *
+ * Steps 1-5 (parse, trust, change set, resolve, guardrails) are coordination
+ * logic. Steps 6-9 are delegated to phase helpers in ./phases/.
+ *
  * Throws ExecutionPreconditionError for precondition failures (e.g. missing
  * metadata.id) — callers must map these to error envelopes at the boundary.
  */
@@ -9,28 +12,20 @@
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import stringify from 'json-stable-stringify';
-import type { ExecutionData } from '../diagnostics/types.js';
 import { ExecutionPreconditionError } from '../execution/errors.js';
-import { getExecution, preparePinData } from '../execution/mcp-client.js';
-import {
-  generateSampleFromSchema,
-  readCachedPinData,
-  writeCachedPinData,
-} from '../execution/pin-data.js';
-import type { PinData, PinDataItem } from '../execution/types.js';
+import type { PinData } from '../execution/types.js';
 import type { EvaluationInput } from '../guardrails/types.js';
-import type { StaticFinding } from '../static-analysis/types.js';
-import { computeContentHash, computeWorkflowHash } from '../trust/hash.js';
-import type {
-  AvailableCapabilities,
-  DiagnosticSummary,
-  ValidationMeta,
-} from '../types/diagnostic.js';
+import { computeNodeHashes } from '../trust/hash.js';
+import type { DiagnosticSummary, ValidationMeta } from '../types/diagnostic.js';
 import type { WorkflowGraph } from '../types/graph.js';
 import type { GuardrailDecision } from '../types/guardrail.js';
 import type { NodeIdentity } from '../types/identity.js';
 import type { NodeChangeSet } from '../types/trust.js';
 import { selectPaths } from './path.js';
+import { runExecution } from './phases/execute.js';
+import { persistResults } from './phases/persist.js';
+import { buildSynthesis } from './phases/synthesize.js';
+import { runStaticAnalysis } from './phases/validate.js';
 import { resolveTarget } from './resolve.js';
 import {
   type OrchestratorDeps,
@@ -98,7 +93,7 @@ export async function interpret(
   // ── Step 5: Consult guardrails ──────────────────────────────────
   const expressionRefs = deps.traceExpressions(graph, resolvedTarget.nodes);
 
-  const currentHashes = computeCurrentHashes(graph, resolvedTarget.nodes);
+  const currentHashes = computeNodeHashes(graph, resolvedTarget.nodes);
   const fixtureHash = request.pinData ? hashPinData(request.pinData) : null;
 
   const evaluationInput: EvaluationInput = {
@@ -137,146 +132,34 @@ export async function interpret(
     }
   }
 
-  // ── Step 6: Run validation ──────────────────────────────────────
-  const staticFindings: StaticFinding[] = [];
-  let executionData: ExecutionData | null = null;
-  let usedPinData: PinData | null = null;
-  const capabilities: AvailableCapabilities = {
-    staticAnalysis: true,
-    mcpTools: false,
+  // ── Step 6a: Static analysis (validate tool only) ───────────────
+  const staticFindings =
+    request.tool === 'validate'
+      ? runStaticAnalysis(graph, paths, resolvedTarget, expressionRefs, deps)
+      : [];
+
+  // ── Step 6b: Execution (test tool only) ─────────────────────────
+  let executionResult = {
+    executionData: null as import('../diagnostics/types.js').ExecutionData | null,
+    executionErrors: [] as import('./phases/execute.js').ExecutionError[],
+    executionId: null as string | null,
+    capabilities: { staticAnalysis: true as const, mcpTools: false },
+    usedPinData: null as PinData | null,
   };
-  let executionId: string | null = null;
 
-  // Step 6a: Static analysis — validate tool only
-  if (request.tool === 'validate') {
-    if (paths.length <= 1) {
-      const dataLossFindings = deps.detectDataLoss(graph, expressionRefs, resolvedTarget.nodes);
-      const schemaFindings = deps.checkSchemas(graph, expressionRefs);
-      const paramFindings = deps.validateNodeParams(graph, resolvedTarget.nodes);
-      staticFindings.push(...dataLossFindings, ...schemaFindings, ...paramFindings);
-    } else {
-      for (const path of paths) {
-        const pathNodes = path.nodes;
-        const refs = deps.traceExpressions(graph, pathNodes);
-        const dataLossFindings = deps.detectDataLoss(graph, refs, pathNodes);
-        const schemaFindings = deps.checkSchemas(graph, refs);
-        const paramFindings = deps.validateNodeParams(graph, pathNodes);
-        staticFindings.push(...dataLossFindings, ...schemaFindings, ...paramFindings);
-      }
-    }
-  }
-
-  // Step 6b: Execution — test tool only (MCP is the sole execution backend)
-  const executionErrors: {
-    type: string;
-    message: string;
-    description: null;
-    node: NodeIdentity | null;
-    classification: 'platform';
-    context: Record<string, never>;
-  }[] = [];
   if (request.tool === 'test') {
-    if (!n8nWorkflowId) {
-      throw new ExecutionPreconditionError(
-        'workflow-not-found',
-        'Cannot run execution validation: missing metadata.id in workflow file. Run n8nac push first to populate the workflow ID.',
-      );
-    }
     try {
-      const detected = await deps.detectCapabilities(
-        request.callTool ? { callTool: request.callTool } : undefined,
+      executionResult = await runExecution(
+        n8nWorkflowId,
+        workflowId,
+        graph,
+        resolvedTarget,
+        activeTrust,
+        { callTool: request.callTool, pinData: request.pinData },
+        deps,
       );
-      capabilities.mcpTools = detected.mcpAvailable;
-
-      if (detected.mcpAvailable && request.callTool) {
-        const allTrusted = resolvedTarget.nodes.filter((n) => activeTrust.nodes.has(n));
-        // Only pin nodes that are boundaries between trusted and untrusted regions.
-        // If all target nodes are trusted, execute normally without pinning.
-        const untrustedNodes = resolvedTarget.nodes.filter((n) => !activeTrust.nodes.has(n));
-        const trustedBoundaries =
-          untrustedNodes.length === 0
-            ? [] // All trusted — execute full workflow, no pinning needed
-            : allTrusted.filter((n) => {
-                // A trusted node is a boundary if it has an edge to an untrusted node
-                const forward = graph.forward.get(n);
-                return forward?.some((e) => !activeTrust.nodes.has(e.to)) ?? false;
-              });
-        // Load cached pin data as prior artifacts (tier 2)
-        const priorArtifacts: Record<string, PinDataItem[]> = {};
-        const nodeHashes = computeCurrentHashes(graph, trustedBoundaries);
-        for (const boundary of trustedBoundaries) {
-          const hash = nodeHashes.get(boundary);
-          if (hash) {
-            const cached = await readCachedPinData(workflowId, hash);
-            if (cached) priorArtifacts[boundary as string] = cached;
-          }
-        }
-
-        // Tier 3: MCP-sourced pin data from prepare_test_pin_data schemas
-        let mcpPinData: Record<string, PinDataItem[]> | undefined;
-        if (trustedBoundaries.length > 0) {
-          try {
-            const prepared = await preparePinData(n8nWorkflowId, request.callTool);
-            mcpPinData = {};
-            for (const boundary of trustedBoundaries) {
-              const nodeName = boundary as string;
-              if (nodeName in prepared.nodeSchemasToGenerate) {
-                const schema = prepared.nodeSchemasToGenerate[nodeName] as Record<string, unknown>;
-                mcpPinData[nodeName] = [{ json: generateSampleFromSchema(schema) }];
-              } else if (prepared.nodesSkipped.includes(nodeName)) {
-                // Node doesn't need pin data (logic node) — provide empty pin data
-                mcpPinData[nodeName] = [{ json: {} }];
-              } else if (prepared.nodesWithoutSchema.includes(nodeName)) {
-                mcpPinData[nodeName] = [{ json: {} }];
-              }
-            }
-          } catch {
-            // MCP tier-3 failure is non-fatal — fall through to tier 4
-          }
-        }
-
-        const pinDataResult = deps.constructPinData(
-          graph,
-          trustedBoundaries,
-          request.pinData as Record<string, PinDataItem[]> | undefined,
-          Object.keys(priorArtifacts).length > 0 ? priorArtifacts : undefined,
-          mcpPinData && Object.keys(mcpPinData).length > 0 ? mcpPinData : undefined,
-        );
-        usedPinData = pinDataResult.pinData;
-
-        const execResult = await deps.executeSmoke(
-          n8nWorkflowId,
-          pinDataResult.pinData,
-          request.callTool,
-        );
-
-        if (execResult.error) {
-          executionErrors.push({
-            type: execResult.error.type,
-            message: execResult.error.message,
-            description: null,
-            node: execResult.error.node as NodeIdentity | null,
-            classification: 'platform',
-            context: {},
-          });
-        }
-
-        executionId = execResult.executionId;
-
-        // Retrieve execution data via MCP
-        if (execResult.executionId) {
-          const mcpResult = await getExecution(
-            n8nWorkflowId,
-            execResult.executionId,
-            request.callTool,
-            { includeData: true },
-          );
-          if (mcpResult.data) {
-            executionData = mcpResult.data;
-          }
-        }
-      }
     } catch (err) {
+      if (err instanceof ExecutionPreconditionError) throw err;
       return errorDiagnostic(
         `Execution failed: ${err instanceof Error ? err.message : String(err)}`,
         runId,
@@ -285,72 +168,40 @@ export async function interpret(
     }
   }
 
-  // ── Step 7: Deduplicate and Synthesize ──────────────────────────
-
-  // Deduplicate static findings by (node, kind, message)
-  const seen = new Set<string>();
-  const deduplicatedFindings = staticFindings.filter((f) => {
-    const key = `${f.node}|${f.kind}|${f.message}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
+  // ── Step 7: Synthesize ──────────────────────────────────────────
   const meta: ValidationMeta = {
     runId,
-    executionId,
+    executionId: executionResult.executionId,
     timestamp: new Date().toISOString(),
     durationMs: Date.now() - startTime,
   };
 
-  const summary = deps.synthesize({
-    staticFindings: deduplicatedFindings,
-    executionData,
-    trustState: activeTrust,
+  const summary = buildSynthesis(
+    staticFindings,
+    executionResult.executionData,
+    executionResult.executionErrors,
+    activeTrust,
     guardrailDecisions,
     resolvedTarget,
-    capabilities,
+    executionResult.capabilities,
     meta,
-  });
+    deps,
+  );
 
-  // Append execution errors (e.g., missing metadata.id) to the summary
-  if (executionErrors.length > 0) {
-    summary.errors.push(...executionErrors);
-    if (summary.status === 'pass') {
-      summary.status = 'error';
-    }
-  }
-
-  // ── Step 8: Update trust (pass only) ────────────────────────────
-  if (summary.status === 'pass') {
-    // Only record trust for nodes that were actually validated (present in paths)
-    const validatedNodes = collectValidatedNodes(paths, resolvedTarget.nodes);
-    const updatedTrust = deps.recordValidation(
-      activeTrust,
-      validatedNodes,
-      graph,
-      request.tool === 'test' ? 'execution' : 'static',
-      runId,
-      fixtureHash,
-    );
-    deps.persistTrustState(updatedTrust, computeWorkflowHash(graph));
-  }
-
-  // ── Step 9: Save snapshot (pass only) ───────────────────────────
-  if (summary.status === 'pass') {
-    deps.saveSnapshot(workflowId, graph);
-
-    // Cache used pin data for future tier 2 sourcing
-    if (usedPinData) {
-      const hashes = computeCurrentHashes(graph, [...Object.keys(usedPinData)] as NodeIdentity[]);
-      for (const [nodeId, hash] of hashes) {
-        const items = usedPinData[nodeId as string];
-        if (items) {
-          await writeCachedPinData(workflowId, hash, items);
-        }
-      }
-    }
-  }
+  // ── Steps 8-9: Persist ──────────────────────────────────────────
+  await persistResults(
+    summary,
+    activeTrust,
+    graph,
+    workflowId,
+    request.tool,
+    runId,
+    fixtureHash,
+    paths,
+    resolvedTarget,
+    executionResult.usedPinData,
+    deps,
+  );
 
   // ── Step 10: Return ─────────────────────────────────────────────
   return summary;
@@ -358,41 +209,12 @@ export async function interpret(
 
 // ── helpers ───────────────────────────────────────────────────────
 
-function computeCurrentHashes(
-  graph: WorkflowGraph,
-  nodes: NodeIdentity[],
-): Map<NodeIdentity, string> {
-  const hashes = new Map<NodeIdentity, string>();
-  for (const nodeId of nodes) {
-    const node = graph.nodes.get(nodeId);
-    if (node) {
-      hashes.set(nodeId, computeContentHash(node, graph.ast));
-    }
-  }
-  return hashes;
-}
-
 function hashPinData(pinData: PinData): string {
   const serialized = stringify(pinData);
   if (serialized === undefined) {
     throw new Error('Pin data contains non-serializable values');
   }
   return createHash('sha256').update(serialized).digest('hex');
-}
-
-/** Collect nodes that were actually covered by selected paths. */
-function collectValidatedNodes(
-  paths: import('../types/slice.js').PathDefinition[],
-  targetNodes: NodeIdentity[],
-): NodeIdentity[] {
-  if (paths.length === 0) return targetNodes;
-  const covered = new Set<string>();
-  for (const path of paths) {
-    for (const node of path.nodes) {
-      covered.add(node as string);
-    }
-  }
-  return targetNodes.filter((n) => covered.has(n as string));
 }
 
 function errorDiagnostic(message: string, runId: string, startTime: number): DiagnosticSummary {

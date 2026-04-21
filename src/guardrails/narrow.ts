@@ -2,11 +2,12 @@
  * Narrowing algorithm — reduces a broad validation target to the smallest
  * useful scope around changed nodes.
  *
- * Seeds from trust-breaking changed nodes, then BFS forward and backward
+ * Seeds from trust-breaking changed nodes, then traverses forward and backward
  * through the graph, stopping at trusted-unchanged nodes or target boundaries.
  * Returns null when narrowing would not reduce the scope.
  */
 
+import { classifyBoundaries, traverse } from '../static-analysis/traversal.js';
 import { isTrusted } from '../trust/trust.js';
 import type { GuardrailEvidence } from '../types/guardrail.js';
 import type { NodeIdentity } from '../types/identity.js';
@@ -40,81 +41,41 @@ export function computeNarrowedTarget(
   if (changedRatio >= NARROW_MAX_CHANGED_RATIO) return null;
 
   const changedSet = new Set<NodeIdentity>(changedNodes);
-  const result = new Set<NodeIdentity>(changedNodes);
 
-  // BFS forward from seed through graph.forward
-  const forwardQueue: NodeIdentity[] = [...changedNodes];
-  const forwardVisited = new Set<NodeIdentity>(changedNodes);
+  // Stopping predicate: stop at nodes outside target, trusted-unchanged nodes, or trigger nodes (backward only)
+  const makeStopPredicate = (direction: 'forward' | 'backward') => (node: NodeIdentity) => {
+    // Stop at nodes outside target
+    if (!targetNodes.has(node)) return true;
 
-  while (forwardQueue.length > 0) {
-    const current = forwardQueue.shift() as NodeIdentity;
-    const downstream = graph.forward.get(current) ?? [];
-    for (const edge of downstream) {
-      const neighbor = edge.to as NodeIdentity;
-      if (forwardVisited.has(neighbor)) continue;
-      forwardVisited.add(neighbor);
-
-      // Stop at nodes outside target
-      if (!targetNodes.has(neighbor)) continue;
-
-      // Stop at trusted-unchanged nodes (they form the boundary)
-      const hash = currentHashes.get(neighbor);
-      if (hash && isTrusted(trustState, neighbor, hash) && !changedSet.has(neighbor)) continue;
-
-      result.add(neighbor);
-      forwardQueue.push(neighbor);
+    // Stop at trigger nodes during backward traversal
+    if (direction === 'backward') {
+      const incoming = graph.backward.get(node) ?? [];
+      if (incoming.length === 0) return false; // Don't stop — include trigger but let traverse handle the terminal
     }
+
+    // Stop at trusted-unchanged nodes
+    const hash = currentHashes.get(node);
+    if (hash && isTrusted(trustState, node, hash) && !changedSet.has(node)) return true;
+
+    return false;
+  };
+
+  const forwardResult = traverse(changedNodes, graph, 'forward', makeStopPredicate('forward'));
+  const backwardResult = traverse(changedNodes, graph, 'backward', makeStopPredicate('backward'));
+
+  // Merge results, only keeping nodes within the target set
+  const result = new Set<NodeIdentity>();
+  for (const n of forwardResult.visited) {
+    if (targetNodes.has(n)) result.add(n);
   }
-
-  // BFS backward from seed through graph.backward
-  const backwardQueue: NodeIdentity[] = [...changedNodes];
-  const backwardVisited = new Set<NodeIdentity>(changedNodes);
-
-  while (backwardQueue.length > 0) {
-    const current = backwardQueue.shift() as NodeIdentity;
-    const upstream = graph.backward.get(current) ?? [];
-    for (const edge of upstream) {
-      const neighbor = edge.from as NodeIdentity;
-      if (backwardVisited.has(neighbor)) continue;
-      backwardVisited.add(neighbor);
-
-      // Stop at nodes outside target
-      if (!targetNodes.has(neighbor)) continue;
-
-      // Stop at trigger nodes (no incoming edges)
-      const incoming = graph.backward.get(neighbor) ?? [];
-      if (incoming.length === 0) {
-        result.add(neighbor);
-        continue; // don't propagate further from triggers
-      }
-
-      // Stop at trusted-unchanged nodes
-      const hash = currentHashes.get(neighbor);
-      if (hash && isTrusted(trustState, neighbor, hash) && !changedSet.has(neighbor)) continue;
-
-      result.add(neighbor);
-      backwardQueue.push(neighbor);
-    }
+  for (const n of backwardResult.visited) {
+    if (targetNodes.has(n)) result.add(n);
   }
 
   // No reduction — return null
   if (result.size >= targetNodes.size) return null;
 
-  // Build entry/exit points for the slice
-  const entryPoints: NodeIdentity[] = [];
-  const exitPoints: NodeIdentity[] = [];
-
-  for (const nodeId of result) {
-    const incoming = graph.backward.get(nodeId) ?? [];
-    const hasExternalIncoming =
-      incoming.length === 0 || incoming.some((e) => !result.has(e.from as NodeIdentity));
-    if (hasExternalIncoming) entryPoints.push(nodeId);
-
-    const outgoing = graph.forward.get(nodeId) ?? [];
-    const hasExternalOutgoing =
-      outgoing.length === 0 || outgoing.some((e) => !result.has(e.to as NodeIdentity));
-    if (hasExternalOutgoing) exitPoints.push(nodeId);
-  }
+  const { entryPoints, exitPoints } = classifyBoundaries(result, graph);
 
   return {
     kind: 'slice',

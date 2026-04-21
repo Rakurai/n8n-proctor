@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import type { WorkflowAST } from '@n8n-as-code/transformer';
 import stringify from 'json-stable-stringify';
 import type { GraphNode, WorkflowGraph } from '../types/graph.js';
+import type { NodeIdentity } from '../types/identity.js';
 import { ContentHashError } from './errors.js';
 
 /**
@@ -106,6 +107,26 @@ export function computeWorkflowHash(graph: WorkflowGraph): string {
     throw new Error('Failed to serialize workflow hash input');
   }
   return sha256(serialized);
+}
+
+/**
+ * Compute content hashes for a list of nodes within a graph.
+ *
+ * Returns a map from node identity to its SHA-256 content hash.
+ * Nodes not present in the graph are silently skipped.
+ */
+export function computeNodeHashes(
+  graph: WorkflowGraph,
+  nodes: NodeIdentity[],
+): Map<NodeIdentity, string> {
+  const hashes = new Map<NodeIdentity, string>();
+  for (const nodeId of nodes) {
+    const node = graph.nodes.get(nodeId);
+    if (node) {
+      hashes.set(nodeId, computeContentHash(node, graph.ast));
+    }
+  }
+  return hashes;
 }
 
 function sha256(data: string): string {
