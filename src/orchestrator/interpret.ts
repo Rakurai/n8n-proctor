@@ -61,7 +61,8 @@ export async function interpret(
     graph = deps.parsing.buildGraph(ast);
     // buildGraph always produces a full WorkflowAST — narrow past SnapshotAST union
     const fullAst = graph.ast as import('@n8n-as-code/transformer').WorkflowAST;
-    n8nWorkflowId = fullAst.metadata.id.trim();
+    const rawId = fullAst.metadata?.id;
+    n8nWorkflowId = rawId ? rawId.trim() : '';
   } catch (err) {
     return errorDiagnostic(
       `Failed to parse workflow: ${err instanceof Error ? err.message : String(err)}`,
@@ -90,6 +91,28 @@ export async function interpret(
   }
 
   let { target: resolvedTarget, slice } = resolveResult;
+
+  // ── Step 4b: Early exit on empty target ─────────────────────────
+  // When kind:changed resolves to zero nodes (all trusted, nothing changed),
+  // return skipped immediately. This avoids hitting the synthesis assertion
+  // that requires at least one node in scope (issue #2).
+  if (resolvedTarget.nodes.length === 0) {
+    const guardrailDecisions: GuardrailDecision[] = [
+      {
+        action: 'refuse',
+        explanation: 'No changes detected — nothing to validate.',
+        evidence: {
+          changedNodes: [],
+          trustedNodes: [...activeTrust.nodes.keys()],
+          lastValidatedAt: null,
+          fixtureChanged: false,
+        },
+        overridable: true,
+      },
+    ];
+    return skippedDiagnostic(resolvedTarget, guardrailDecisions, runId, startTime);
+  }
+
   let paths = selectPaths(slice, graph, changeSet, activeTrust);
 
   // ── Step 5: Consult guardrails ──────────────────────────────────
@@ -141,6 +164,14 @@ export async function interpret(
       : [];
 
   // ── Step 6b: Execution (test tool only) ─────────────────────────
+  if (request.tool === 'test' && !n8nWorkflowId) {
+    return errorDiagnostic(
+      'Workflow has no metadata.id — push with n8nac first, then test.',
+      runId,
+      startTime,
+    );
+  }
+
   let executionResult: ExecutionPreparationResult = {
     executionData: null,
     executionErrors: [],
@@ -197,6 +228,11 @@ export async function interpret(
   // Surface execution warnings as info-severity hints
   for (const warning of executionResult.warnings) {
     summary.hints.push({ node: null, message: warning, severity: 'info' });
+  }
+
+  // Compact mode: omit skipped annotations (opaque nodes with no findings)
+  if (request.compact) {
+    summary.nodeAnnotations = summary.nodeAnnotations.filter((a) => a.status !== 'skipped');
   }
 
   // ── Steps 8-9: Persist ──────────────────────────────────────────

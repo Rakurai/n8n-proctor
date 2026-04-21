@@ -208,7 +208,7 @@ describe('runTrust', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.totalNodes).toBe(2);
-      expect(result.data.untrustedNodes).toHaveLength(2);
+      expect('untrustedNodes' in result.data && result.data.untrustedNodes).toHaveLength(2);
     }
   });
 

@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-04-21
+
+Bug fixes and field-testing improvements from GitHub issues #1–#5.
+
+### Fixed
+
+- **Plugin hook builds dist/** (#1) — `SessionStart` hook now runs `npm run build` after `npm install`, so the CLI binary resolves correctly
+- **Empty-target graceful exit** (#2) — `interpret()` returns a `skipped` diagnostic with a `refuse` guardrail decision when the resolved target contains zero nodes, instead of proceeding through analysis with an empty set
+- **Test-refusal opaque-downstream trigger** (#3) — new escalation Trigger 7 fires when a changed node feeds into a `shape-opaque` downstream consumer, correctly escalating to `test` instead of refusing
+- **Missing workflow ID handled gracefully** (#5) — `interpret()` safely accesses `metadata.id` with optional chaining and returns an `error` diagnostic when `tool: 'test'` is requested without a workflow ID, instead of throwing `ExecutionPreconditionError`
+
+### Added
+
+- **Compact mode** — `compact` option on `validate`, `test`, and `trust_status` MCP tools; filters out `skipped` node annotations and returns count-only trust status
+- **Expanded MCP tool descriptions** — `trust_status` and `explain` descriptions now explain when and why to use each tool
+- **`changed` heuristic documentation** — SKILL.md now explains how `kind: 'changed'` works, first-ever validation behavior, and no-changes-detected behavior
+
 ## [0.2.0] - 2026-04-21
 
 Audit remediation — internal restructuring with no new user-facing features.

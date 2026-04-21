@@ -34,6 +34,7 @@ const ValidateInputSchema = z.object({
   workflowPath: z.string().min(1),
   nodes: z.array(z.string()).optional(),
   force: z.boolean().optional(),
+  compact: z.boolean().optional(),
 });
 
 const TestInputSchema = z.object({
@@ -41,11 +42,13 @@ const TestInputSchema = z.object({
   workflowPath: z.string().min(1),
   nodes: z.array(z.string()).optional(),
   force: z.boolean().optional(),
+  compact: z.boolean().optional(),
   pinData: z.record(z.array(z.object({ json: z.record(z.unknown()) }).passthrough())).optional(),
 });
 
 const TrustStatusInputSchema = {
   workflowPath: z.string().min(1),
+  compact: z.boolean().optional(),
 };
 
 const ExplainInputSchema = z
@@ -117,6 +120,7 @@ export function createServer(deps: OrchestratorDeps, callTool?: McpToolCaller): 
           target,
           tool: 'validate',
           force: args.force ?? false,
+          compact: args.compact ?? false,
           pinData: null,
         };
         const summary = await interpret(request, deps);
@@ -145,6 +149,7 @@ export function createServer(deps: OrchestratorDeps, callTool?: McpToolCaller): 
           target,
           tool: 'test',
           force: args.force ?? false,
+          compact: args.compact ?? false,
           pinData: args.pinData ?? null,
           ...(callTool ? { callTool } : {}),
         };
@@ -160,13 +165,16 @@ export function createServer(deps: OrchestratorDeps, callTool?: McpToolCaller): 
   server.registerTool(
     'trust_status',
     {
-      description: 'Inspect trust state for a workflow. Shows trusted/untrusted nodes and changes.',
+      description:
+        'Inspect trust state for a workflow. Shows which nodes are trusted (previously validated and unchanged) vs untrusted (new, changed, or never validated). Use before validate/test to understand what needs attention, or after validation to confirm trust was recorded.',
       inputSchema: TrustStatusInputSchema,
     },
     async (args) => {
       try {
         validatePathBoundary(args.workflowPath);
-        const report = await buildTrustStatusReport(args.workflowPath, deps);
+        const report = args.compact
+          ? await buildTrustStatusReport(args.workflowPath, deps, { compact: true })
+          : await buildTrustStatusReport(args.workflowPath, deps);
         return wrapSuccess(report);
       } catch (error) {
         return wrapError(error);
@@ -179,7 +187,7 @@ export function createServer(deps: OrchestratorDeps, callTool?: McpToolCaller): 
     'explain',
     {
       description:
-        'Dry-run guardrail evaluation. Shows what guardrails would decide without performing validation.',
+        'Dry-run guardrail evaluation without performing validation. Shows what guardrails would decide (proceed, warn, narrow, or refuse) for a given target and tool. Use when a previous call was refused or narrowed and you want to understand why before deciding whether to force.',
       inputSchema: ExplainInputSchema,
     },
     async (args) => {

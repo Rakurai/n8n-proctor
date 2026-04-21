@@ -2,7 +2,7 @@
 name: validate-workflow
 description: Use to validate n8n-as-code workflow files, debug n8n execution failures, check data flow between nodes, or decide whether a workflow change needs runtime validation. Requires the n8n-proctor MCP server.
 license: MIT
-compatibility: ">=0.2.0"
+compatibility: ">=0.2.1"
 ---
 
 # n8n Workflow Validation
@@ -88,6 +88,14 @@ If `metadata.id` is missing when you call `test`, n8n-proctor returns a precondi
 Trust carries forward across calls. Nodes that pass static validation (Step 1) remain trusted through execution testing (Step 3) as long as their content hasn't changed. This means execution focuses only on runtime-specific concerns.
 
 Call `trust_status` to see current trust state before deciding what to validate or test.
+
+## How `kind: 'changed'` works
+
+When you use `kind: 'changed'`, n8n-proctor compares the current workflow against the last validated snapshot:
+
+- **With a prior snapshot**: Detects added nodes, modified nodes (parameter/expression/connection changes), and nodes that exist in the graph but have no trust record. Only these nodes (plus their forward/backward dependents up to trust boundaries) enter the validation scope.
+- **Without a prior snapshot** (first-ever validation): Every node is considered "changed" — equivalent to `kind: 'workflow'`. This is expected on first use.
+- **No changes detected**: All nodes are trusted and unchanged. The tool returns `status: 'skipped'` with an explanation. Use `kind: 'workflow'` with `force: true` to re-validate anyway.
 
 ## When to validate
 

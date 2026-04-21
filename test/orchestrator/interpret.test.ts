@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import { interpret } from '../../src/orchestrator/interpret.js';
-import { ExecutionPreconditionError } from '../../src/execution/errors.js';
 import type { OrchestratorDeps, ValidationRequest } from '../../src/orchestrator/types.js';
 import type { WorkflowGraph, GraphNode, Edge } from '../../src/types/graph.js';
 import type { NodeIdentity } from '../../src/types/identity.js';
@@ -955,7 +954,7 @@ describe('interpret() — n8nWorkflowId routing (US1)', () => {
     );
   });
 
-  it('missing metadata.id with tool:test throws ExecutionPreconditionError', async () => {
+  it('missing metadata.id with tool:test returns error diagnostic', async () => {
     const callTool = vi.fn();
     const graphWithEmptyId = makeGraph(
       ['trigger', 'httpReq', 'setNode', 'end'],
@@ -975,8 +974,9 @@ describe('interpret() — n8nWorkflowId routing (US1)', () => {
       callTool,
     };
 
-    await expect(interpret(request, deps)).rejects.toThrow(ExecutionPreconditionError);
-    await expect(interpret(request, deps)).rejects.toThrow('missing metadata.id');
+    const result = await interpret(request, deps);
+    expect(result.status).toBe('error');
+    expect(result.errors[0]!.message).toMatch(/metadata\.id/);
   });
 
   it('missing metadata.id with tool:validate proceeds without error', async () => {
@@ -1020,7 +1020,7 @@ describe('interpret() — n8nWorkflowId routing (US1)', () => {
     expect(trustCall).toContain('workflow.ts');
   });
 
-  it('tool:test with missing metadata.id throws before running static analysis', async () => {
+  it('tool:test with missing metadata.id returns error before running static analysis', async () => {
     const callTool = vi.fn();
     const graphWithEmptyId = makeGraph(
       ['trigger', 'httpReq', 'setNode', 'end'],
@@ -1040,7 +1040,8 @@ describe('interpret() — n8nWorkflowId routing (US1)', () => {
       callTool,
     };
 
-    await expect(interpret(request, deps)).rejects.toThrow(ExecutionPreconditionError);
+    const result = await interpret(request, deps);
+    expect(result.status).toBe('error');
   });
 
   it('whitespace-only metadata.id is treated as missing', async () => {
@@ -1063,7 +1064,8 @@ describe('interpret() — n8nWorkflowId routing (US1)', () => {
       callTool,
     };
 
-    await expect(interpret(request, deps)).rejects.toThrow(ExecutionPreconditionError);
-    await expect(interpret(request, deps)).rejects.toThrow('missing metadata.id');
+    const result = await interpret(request, deps);
+    expect(result.status).toBe('error');
+    expect(result.errors[0]!.message).toMatch(/metadata\.id/);
   });
 });

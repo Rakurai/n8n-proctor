@@ -2,18 +2,6 @@
 
 ---
 
-## v0.2.0 (current)
-
-Audit remediation release. All items complete:
-
-- Boundary hardening: explicit degraded bootstrap, error sanitization, test typecheck
-- Slice semantics consolidation: shared traversal primitives, unified boundary classification
-- Orchestrator decompression: phase helpers (validate, synthesize, persist)
-- Execution ownership: preparation moved to `execution/prepare.ts`, grouped deps
-- Dependency contract reshape: 7 named subsystem interfaces
-
----
-
 ## v0.3.0 — Unblocked
 
 Work that can start immediately. No external blockers.
@@ -22,17 +10,9 @@ Work that can start immediately. No external blockers.
 
 Issues surfaced during real-agent field testing. See `docs/internal/n8n-proctor-testing.md` for full context.
 
-#### MCP tool descriptions too minimal
-
-The one-liner descriptions for `explain` and `trust_status` don't explain guardrails or trust concepts. Agents without the companion skill can't understand when to use the tools. Each description should be 2-3 sentences explaining purpose and when to use it. Simple string edits in `src/mcp/server.ts`.
-
 #### Coverage qualifier on diagnostic summary
 
 A "pass" on a 57-node workflow where 55 nodes are opaque is misleading. Add a `coverage` field to `DiagnosticSummary` (e.g., `{ analyzed: 2, opaque: 55, trusted: 0 }`) so consumers can judge confidence. Affects `src/diagnostics/synthesize.ts` and `src/types/diagnostic.ts`.
-
-#### Compact mode for `validate` and `trust_status`
-
-80%+ of response tokens are "skipped — opaque" annotations that carry no actionable information. A `compact` option that omits skipped annotations would cut context costs dramatically. For `trust_status`, counts-by-reason instead of per-node listing would reduce a 4,500-token response to ~200 tokens.
 
 #### Validate node params against node schemas
 
@@ -41,10 +21,6 @@ The `outputColumns: 'string'` vs `string[]` bug affected 5 nodes across 3 workfl
 #### Extend static analysis into Postgres/OpenAI nodes
 
 Postgres SELECT queries have deterministic column lists that could infer output shapes. OpenAI structured output schemas define the output shape. These are currently marked "opaque to analysis" but have analyzable contracts. Distinguish "opaque-by-nature" (Code nodes) from "potentially-analyzable" (Postgres, OpenAI).
-
-#### Document the `changed` heuristic in the skill
-
-The skill docs say "auto-detect what changed" but don't explain the baseline/diff mechanism. Add a paragraph to `skills/validate-workflow/SKILL.md` explaining when `changed` means "everything" vs "nothing" and why.
 
 ### Opportunistic Trust Harvesting (headline feature)
 

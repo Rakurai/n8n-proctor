@@ -127,6 +127,20 @@ export function assessEscalationTriggers(input: EvaluationInput): EscalationAsse
     }
   }
 
+  // Trigger 7: changed node feeds into a shape-opaque downstream consumer
+  for (const nodeId of changedNodeSet) {
+    const downstream = collectDownstream(nodeId, graph);
+    for (const downId of downstream) {
+      const downNode = graph.nodes.get(downId);
+      if (downNode && downNode.classification === 'shape-opaque') {
+        reasons.push(
+          `Changed node '${nodeId}' feeds into shape-opaque node '${downId}' — runtime validation needed to verify integration.`,
+        );
+        break;
+      }
+    }
+  }
+
   return {
     triggered: reasons.length > 0,
     reasons,
@@ -134,16 +148,12 @@ export function assessEscalationTriggers(input: EvaluationInput): EscalationAsse
 }
 
 /**
- * Check if any downstream node of the given node has a $json expression
- * reference that flows through it (referencedNode is null = implicit $json
- * from previous node).
+ * BFS forward from a node, returning all downstream node IDs.
  */
-function hasDownstreamJsonDependence(
+function collectDownstream(
   nodeId: NodeIdentity,
   graph: Parameters<typeof assessEscalationTriggers>[0]['graph'],
-  expressionRefs: Parameters<typeof assessEscalationTriggers>[0]['expressionRefs'],
-): boolean {
-  // BFS forward to find downstream nodes
+): Set<NodeIdentity> {
   const downstream = new Set<NodeIdentity>();
   const queue: NodeIdentity[] = [];
   const edges = graph.forward.get(nodeId) ?? [];
@@ -165,6 +175,20 @@ function hasDownstreamJsonDependence(
       }
     }
   }
+  return downstream;
+}
+
+/**
+ * Check if any downstream node of the given node has a $json expression
+ * reference that flows through it (referencedNode is null = implicit $json
+ * from previous node).
+ */
+function hasDownstreamJsonDependence(
+  nodeId: NodeIdentity,
+  graph: Parameters<typeof assessEscalationTriggers>[0]['graph'],
+  expressionRefs: Parameters<typeof assessEscalationTriggers>[0]['expressionRefs'],
+): boolean {
+  const downstream = collectDownstream(nodeId, graph);
 
   // Check if any downstream node references $json without a specific referencedNode
   for (const ref of expressionRefs) {

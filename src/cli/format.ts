@@ -97,6 +97,14 @@ export function formatTrustStatus(report: TrustStatusReport): string {
 
   lines.push(`${BOLD}Workflow:${RESET} ${report.workflowId} (${report.totalNodes} nodes)`);
 
+  if ('trustedCount' in report) {
+    lines.push('');
+    lines.push(
+      `${GREEN}Trusted:${RESET} ${report.trustedCount}  ${RED}Untrusted:${RESET} ${report.untrustedCount}  Changed: ${report.changedCount}`,
+    );
+    return lines.join('\n');
+  }
+
   if (report.trustedNodes.length > 0) {
     lines.push('');
     lines.push(`${BOLD}${GREEN}Trusted (${report.trustedNodes.length}):${RESET}`);

@@ -49,13 +49,13 @@ describe('evaluate pipeline', () => {
     it('refuses when tool=test and no escalation triggers fire', () => {
       const graph = linearGraph();
       const allNames = [...graph.nodes.keys()];
-      // Only change shape-preserving/augmenting nodes — no escalation triggers
+      // Change 'output' (shape-preserving, no opaque downstream) — no escalation triggers
       const input = makeEvaluationInput({
         graph,
-        targetNodes: nodeSet('trigger', 'set'),
+        targetNodes: nodeSet('output'),
         changeSet: narrowChanges(
-          [{ node: 'set', changes: ['parameter'] }],
-          allNames.filter((n) => n !== 'set'),
+          [{ node: 'output', changes: ['parameter'] }],
+          allNames.filter((n) => n !== 'output'),
         ),
         currentHashes: uniformHashes(allNames),
         trustState: emptyTrustState(),
@@ -455,7 +455,7 @@ describe('full pipeline integration — deterministic evaluation order', () => {
   it('Step 3 wins over Steps 4-8: test-refusal fires when tool=test and no escalation triggers', () => {
     const graph = branchingGraph();
     const allNames = [...graph.nodes.keys()];
-    // All nodes are shape-preserving/augmenting — no escalation triggers
+    // Change 'output' (last node, no opaque downstream) — no escalation triggers
     const targetNames = allNames.filter(
       (n) => !['subWorkflow', 'enrich'].includes(n),
     );
@@ -463,8 +463,8 @@ describe('full pipeline integration — deterministic evaluation order', () => {
       graph,
       targetNodes: nodeSet(...targetNames),
       changeSet: narrowChanges(
-        [{ node: 'validate', changes: ['parameter'] }],
-        targetNames.filter((n) => n !== 'validate'),
+        [{ node: 'output', changes: ['parameter'] }],
+        targetNames.filter((n) => n !== 'output'),
       ),
       currentHashes: uniformHashes(allNames),
       trustState: emptyTrustState(),

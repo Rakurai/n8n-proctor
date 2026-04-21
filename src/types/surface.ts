@@ -13,12 +13,24 @@ import type { ValidationEvidence } from './target.js';
 // ── TrustStatusReport ────────────────────────────────────────────
 
 /** Output of the trust_status tool. */
-export interface TrustStatusReport {
+export type TrustStatusReport = TrustStatusDetailedReport | TrustStatusCompactReport;
+
+/** Full per-node trust status detail. */
+export interface TrustStatusDetailedReport {
   workflowId: string;
   totalNodes: number;
   trustedNodes: TrustedNodeInfo[];
   untrustedNodes: UntrustedNodeInfo[];
   changedSinceLastValidation: NodeIdentity[];
+}
+
+/** Compact counts-only trust status (compact mode). */
+export interface TrustStatusCompactReport {
+  workflowId: string;
+  totalNodes: number;
+  trustedCount: number;
+  untrustedCount: number;
+  changedCount: number;
 }
 
 /** A node with an active trust record. */

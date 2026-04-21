@@ -40,6 +40,7 @@ export const ValidationRequestSchema = z.object({
   target: AgentTargetSchema,
   tool: ToolSchema,
   force: z.boolean(),
+  compact: z.boolean().optional().default(false),
   pinData: z.record(z.array(z.object({ json: z.record(z.unknown()) }).passthrough())).nullable(),
 });
 
@@ -51,6 +52,7 @@ export interface ValidationRequest {
   target: AgentTarget;
   tool: 'validate' | 'test';
   force: boolean;
+  compact?: boolean;
   pinData: PinData | null;
   callTool?: McpToolCaller;
 }

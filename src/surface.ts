@@ -13,6 +13,8 @@ import { computeContentHash } from './trust/hash.js';
 import type { NodeIdentity } from './types/identity.js';
 import type {
   GuardrailExplanation,
+  TrustStatusCompactReport,
+  TrustStatusDetailedReport,
   TrustStatusReport,
   TrustedNodeInfo,
   UntrustedNodeInfo,
@@ -24,6 +26,17 @@ import type { AgentTarget } from './types/target.js';
 export async function buildTrustStatusReport(
   workflowPath: string,
   deps: OrchestratorDeps,
+  options: { compact: true },
+): Promise<TrustStatusCompactReport>;
+export async function buildTrustStatusReport(
+  workflowPath: string,
+  deps: OrchestratorDeps,
+  options?: { compact?: false },
+): Promise<TrustStatusDetailedReport>;
+export async function buildTrustStatusReport(
+  workflowPath: string,
+  deps: OrchestratorDeps,
+  options?: { compact?: boolean },
 ): Promise<TrustStatusReport> {
   const ast = await deps.parsing.parseWorkflowFile(workflowPath);
   const graph = deps.parsing.buildGraph(ast);
@@ -61,6 +74,16 @@ export async function buildTrustStatusReport(
   const changedSinceLastValidation = changeSet
     ? [...changeSet.added, ...changeSet.modified.map((m) => m.node), ...changeSet.removed]
     : [];
+
+  if (options?.compact) {
+    return {
+      workflowId,
+      totalNodes: graph.nodes.size,
+      trustedCount: trustedNodes.length,
+      untrustedCount: untrustedNodes.length,
+      changedCount: changedSinceLastValidation.length,
+    };
+  }
 
   return {
     workflowId,

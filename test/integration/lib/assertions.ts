@@ -2,14 +2,14 @@
  * Typed assertion helpers for integration test scenarios.
  *
  * Each function throws with a descriptive message on failure.
- * Operates on n8n-proctor's DiagnosticSummary and TrustStatusReport types.
+ * Operates on n8n-proctor's DiagnosticSummary and TrustStatusDetailedReport types.
  */
 
 import type { DiagnosticSummary, ErrorClassification } from '../../../src/types/diagnostic.js';
 import type { NodeAnnotationStatus } from '../../../src/types/diagnostic.js';
 import type { GuardrailAction } from '../../../src/types/guardrail.js';
 import type { McpResponse, McpErrorType } from '../../../src/errors.js';
-import type { TrustStatusReport } from '../../../src/types/surface.js';
+import type { TrustStatusDetailedReport } from '../../../src/types/surface.js';
 import type { ValidationEvidence } from '../../../src/types/target.js';
 
 export function assertStatus(
@@ -125,7 +125,7 @@ export function assertExecutedPathOrder(
   }
 }
 
-export function assertTrusted(status: TrustStatusReport, nodeName: string, fixture?: string): void {
+export function assertTrusted(status: TrustStatusDetailedReport, nodeName: string, fixture?: string): void {
   const match = status.trustedNodes.find(n => n.name === nodeName);
   if (!match) {
     const trusted = status.trustedNodes.map(n => n.name).join(', ') || 'none';
@@ -137,7 +137,7 @@ export function assertTrusted(status: TrustStatusReport, nodeName: string, fixtu
 }
 
 export function assertTrustedWith(
-  status: TrustStatusReport,
+  status: TrustStatusDetailedReport,
   nodeName: string,
   evidence: ValidationEvidence,
   fixture?: string,
@@ -158,7 +158,7 @@ export function assertTrustedWith(
   }
 }
 
-export function assertUntrusted(status: TrustStatusReport, nodeName: string, fixture?: string): void {
+export function assertUntrusted(status: TrustStatusDetailedReport, nodeName: string, fixture?: string): void {
   const match = status.untrustedNodes.find(n => n.name === nodeName);
   if (!match) {
     const untrusted = status.untrustedNodes.map(n => n.name).join(', ') || 'none';
