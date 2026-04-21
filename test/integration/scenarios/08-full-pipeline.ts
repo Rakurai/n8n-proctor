@@ -40,7 +40,7 @@ async function run(ctx: IntegrationContext): Promise<void> {
   // The UseOriginal node references $json.rawData which doesn't exist after
   // the Transform node replaces the item shape. Fix by referencing $json.processed
   // which IS set by Transform.
-  const tempCopy = join(tmpdir(), `n8n-vet-integ-fix-${Date.now()}.ts`);
+  const tempCopy = join(tmpdir(), `n8n-proctor-integ-fix-${Date.now()}.ts`);
   copyFileSync(dataLossPath, tempCopy);
 
   let content = readFileSync(tempCopy, 'utf-8');

@@ -115,12 +115,12 @@ function isWrappedItem(item: unknown): item is PinDataItem {
 // Pin Data Artifact Caching (T015)
 // ---------------------------------------------------------------------------
 
-const PIN_DATA_DIR = '.n8n-vet/pin-data';
+const PIN_DATA_DIR = '.n8n-proctor/pin-data';
 
 /**
  * Read cached pin data artifact for a node.
  *
- * Cached at .n8n-vet/pin-data/<workflowId>/<nodeContentHash>.json.
+ * Cached at .n8n-proctor/pin-data/<workflowId>/<nodeContentHash>.json.
  * Content-hash keying ensures automatic invalidation when node content changes.
  */
 export async function readCachedPinData(
@@ -171,9 +171,7 @@ export async function writeCachedPinData(
  * orchestrator to convert MCP `prepare_test_pin_data` schemas into usable
  * pin data for tier 3 sourcing.
  */
-export function generateSampleFromSchema(
-  schema: Record<string, unknown>,
-): Record<string, unknown> {
+export function generateSampleFromSchema(schema: Record<string, unknown>): Record<string, unknown> {
   if (schema.type === 'object' && typeof schema.properties === 'object' && schema.properties) {
     const obj: Record<string, unknown> = {};
     for (const [key, propSchema] of Object.entries(

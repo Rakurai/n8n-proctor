@@ -1,7 +1,7 @@
 import { workflow, node, links } from '@n8n-as-code/transformer';
 
 // <workflow-map>
-// Workflow : n8n-vet-test--branching-coverage
+// Workflow : n8n-proctor-test--branching-coverage
 // Nodes   : 4  |  Connections: 3
 //
 // NODE INDEX
@@ -26,7 +26,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 
 @workflow({
     id: 'Y4062Au0NNYTqs2s',
-    name: 'n8n-vet-test--branching-coverage',
+    name: 'n8n-proctor-test--branching-coverage',
     active: false,
     settings: { executionOrder: 'v1', callerPolicy: 'workflowsFromSameOwner', availableInMCP: true },
 })

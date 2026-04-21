@@ -1,7 +1,7 @@
 import { workflow, node, links } from '@n8n-as-code/transformer';
 
 // <workflow-map>
-// Workflow : n8n-vet-test--happy-path
+// Workflow : n8n-proctor-test--happy-path
 // Nodes   : 3  |  Connections: 2
 //
 // NODE INDEX
@@ -24,7 +24,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 
 @workflow({
     id: 'D0KIP1yb8RF7zxkb',
-    name: 'n8n-vet-test--happy-path',
+    name: 'n8n-proctor-test--happy-path',
     active: false,
     settings: { executionOrder: 'v1', callerPolicy: 'workflowsFromSameOwner', availableInMCP: true },
 })

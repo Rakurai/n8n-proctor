@@ -1,4 +1,4 @@
-# Contributing to n8n-vet
+# Contributing to n8n-proctor
 
 ## Prerequisites
 
@@ -11,7 +11,7 @@
 ## Getting Started
 
 ```sh
-git clone <repo-url> && cd n8n-vet
+git clone <repo-url> && cd n8n-proctor
 npm install
 npm run build
 ```
@@ -43,7 +43,7 @@ Copy `.env.example` to `.env` and fill in values, or use `.vscode/settings.json`
 
 ## MCP Server Configuration
 
-n8n-vet needs two MCP servers available at runtime:
+n8n-proctor needs two MCP servers available at runtime:
 
 1. **n8n-mcp** — n8n's built-in MCP server for workflow execution
 2. **n8nac** — n8n-as-code's MCP server for workflow authoring

@@ -173,7 +173,7 @@ export interface SerializedEdge {
   toInput: number;
 }
 
-/** Lightweight serialized form stored in `.n8n-vet/snapshots/{workflowId}.json`. */
+/** Lightweight serialized form stored in `.n8n-proctor/snapshots/{workflowId}.json`. */
 export interface WorkflowSnapshot {
   workflowId: string;
   savedAt: string;

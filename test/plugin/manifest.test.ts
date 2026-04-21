@@ -17,7 +17,7 @@ describe('plugin manifest (FR-002 version sync)', () => {
   });
 
   it('plugin.json has required name field', () => {
-    expect(pluginJson.name).toBe('n8n-vet');
+    expect(pluginJson.name).toBe('n8n-proctor');
   });
 
   it('plugin.json has description', () => {

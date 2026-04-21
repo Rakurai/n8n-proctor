@@ -1,7 +1,7 @@
 import { workflow, node, links } from '@n8n-as-code/transformer';
 
 // <workflow-map>
-// Workflow : n8n-vet-test--broken-wiring
+// Workflow : n8n-proctor-test--broken-wiring
 // Nodes   : 3  |  Connections: 1
 //
 // NODE INDEX
@@ -23,7 +23,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 
 @workflow({
     id: 'dmxhg3XYVXgImSkk',
-    name: 'n8n-vet-test--broken-wiring',
+    name: 'n8n-proctor-test--broken-wiring',
     active: false,
     settings: { executionOrder: 'v1', callerPolicy: 'workflowsFromSameOwner', availableInMCP: true },
 })

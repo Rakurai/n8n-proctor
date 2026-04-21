@@ -6,8 +6,8 @@ import type { WorkflowGraph, GraphNode, Edge } from '../../src/types/graph.js';
 import type { WorkflowAST } from '@n8n-as-code/transformer';
 
 const SCRATCH = join(resolve('.'), '.scratch/test-snapshot-path');
-const DEFAULT_DIR = join(resolve('.'), '.n8n-vet/snapshots');
-const ENV_KEY = 'N8N_VET_DATA_DIR';
+const DEFAULT_DIR = join(resolve('.'), '.n8n-proctor/snapshots');
+const ENV_KEY = 'N8N_PROCTOR_DATA_DIR';
 
 function makeGraph(): WorkflowGraph {
   const node: GraphNode = {
@@ -35,7 +35,7 @@ function makeGraph(): WorkflowGraph {
   };
 }
 
-describe('snapshot path resolution (N8N_VET_DATA_DIR)', () => {
+describe('snapshot path resolution (N8N_PROCTOR_DATA_DIR)', () => {
   let originalEnv: string | undefined;
 
   function cleanup() {
@@ -53,7 +53,7 @@ describe('snapshot path resolution (N8N_VET_DATA_DIR)', () => {
     cleanup();
   });
 
-  it('writes snapshots under N8N_VET_DATA_DIR/snapshots/ when env var is set', () => {
+  it('writes snapshots under N8N_PROCTOR_DATA_DIR/snapshots/ when env var is set', () => {
     originalEnv = process.env[ENV_KEY];
     process.env[ENV_KEY] = SCRATCH;
 
@@ -68,7 +68,7 @@ describe('snapshot path resolution (N8N_VET_DATA_DIR)', () => {
     expect(loaded!.nodes.size).toBe(1);
   });
 
-  it('writes snapshots under .n8n-vet/snapshots/ when N8N_VET_DATA_DIR is absent', () => {
+  it('writes snapshots under .n8n-proctor/snapshots/ when N8N_PROCTOR_DATA_DIR is absent', () => {
     originalEnv = process.env[ENV_KEY];
     delete process.env[ENV_KEY];
 

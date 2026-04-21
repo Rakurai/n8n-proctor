@@ -28,24 +28,20 @@ import type { AgentTarget } from '../types/target.js';
 // We also cannot use .refine() — the SDK's normalizeObjectSchema doesn't
 // unwrap ZodEffects, so .refine() also produces properties:{}.
 
-const ValidateInputSchema = z
-  .object({
-    kind: z.enum(['changed', 'nodes', 'workflow']),
-    workflowPath: z.string().min(1),
-    nodes: z.array(z.string()).optional(),
-    force: z.boolean().optional(),
-  });
+const ValidateInputSchema = z.object({
+  kind: z.enum(['changed', 'nodes', 'workflow']),
+  workflowPath: z.string().min(1),
+  nodes: z.array(z.string()).optional(),
+  force: z.boolean().optional(),
+});
 
-const TestInputSchema = z
-  .object({
-    kind: z.enum(['changed', 'nodes', 'workflow']),
-    workflowPath: z.string().min(1),
-    nodes: z.array(z.string()).optional(),
-    force: z.boolean().optional(),
-    pinData: z
-      .record(z.array(z.object({ json: z.record(z.unknown()) }).passthrough()))
-      .optional(),
-  });
+const TestInputSchema = z.object({
+  kind: z.enum(['changed', 'nodes', 'workflow']),
+  workflowPath: z.string().min(1),
+  nodes: z.array(z.string()).optional(),
+  force: z.boolean().optional(),
+  pinData: z.record(z.array(z.object({ json: z.record(z.unknown()) }).passthrough())).optional(),
+});
 
 const TrustStatusInputSchema = {
   workflowPath: z.string().min(1),
@@ -98,14 +94,14 @@ function validatePathBoundary(workflowPath: string): string {
 
 // ── Server factory ───────────────────────────────────────────────
 
-/** Create an MCP server with all four n8n-vet tools registered. */
+/** Create an MCP server with all four n8n-proctor tools registered. */
 export function createServer(
   deps: OrchestratorDeps,
   callTool?: McpToolCaller,
   n8nHost?: string,
   n8nApiKey?: string,
 ): McpServer {
-  const server = new McpServer({ name: 'n8n-vet', version: '0.1.0' });
+  const server = new McpServer({ name: 'n8n-proctor', version: '0.1.0' });
 
   // ── validate ─────────────────────────────────────────────────
   server.registerTool(

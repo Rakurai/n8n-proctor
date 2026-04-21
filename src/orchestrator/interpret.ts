@@ -12,7 +12,11 @@ import stringify from 'json-stable-stringify';
 import type { ExecutionData } from '../diagnostics/types.js';
 import { ExecutionPreconditionError } from '../execution/errors.js';
 import { getExecution, preparePinData } from '../execution/mcp-client.js';
-import { generateSampleFromSchema, readCachedPinData, writeCachedPinData } from '../execution/pin-data.js';
+import {
+  generateSampleFromSchema,
+  readCachedPinData,
+  writeCachedPinData,
+} from '../execution/pin-data.js';
 import type { PinData, PinDataItem } from '../execution/types.js';
 import type { EvaluationInput } from '../guardrails/types.js';
 import type { StaticFinding } from '../static-analysis/types.js';
@@ -251,7 +255,7 @@ export async function interpret(
             type: execResult.error.type,
             message: execResult.error.message,
             description: null,
-            node: (execResult.error.node as NodeIdentity | null),
+            node: execResult.error.node as NodeIdentity | null,
             classification: 'platform',
             context: {},
           });

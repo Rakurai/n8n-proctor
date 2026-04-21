@@ -1,7 +1,7 @@
 import { workflow, node, links } from '@n8n-as-code/transformer';
 
 // <workflow-map>
-// Workflow : n8n-vet-test--credential-failure
+// Workflow : n8n-proctor-test--credential-failure
 // Nodes   : 3  |  Connections: 2
 //
 // NODE INDEX
@@ -24,7 +24,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 
 @workflow({
     id: 'fjofF7aeAlpDFQWf',
-    name: 'n8n-vet-test--credential-failure',
+    name: 'n8n-proctor-test--credential-failure',
     active: false,
     settings: { executionOrder: 'v1', callerPolicy: 'workflowsFromSameOwner', availableInMCP: true },
 })

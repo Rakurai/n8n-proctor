@@ -24,7 +24,7 @@ async function run(ctx: IntegrationContext): Promise<void> {
 
   // Use a stable temp path (trust is keyed by file path, so we need the same
   // path across validate → modify → re-validate)
-  const tempCopy = join(tmpdir(), `n8n-vet-integ-trust-${Date.now()}.ts`);
+  const tempCopy = join(tmpdir(), `n8n-proctor-integ-trust-${Date.now()}.ts`);
   copyFileSync(multiNodePath, tempCopy);
 
   // Step 1: Validate static on the temp copy → build trust for all nodes

@@ -55,12 +55,12 @@ The architecture must serve these goals, derived from the vision, PRD, and engin
                   ┌────────────▼─────────────┐
                   │       Coding agent        │
                   │  (edits workflows,        │
-                  │   calls n8n-vet + n8nac,  │
+                  │   calls n8n-proctor + n8nac,  │
                   │   consumes diagnostics)   │
                   └──┬─────────────────┬──────┘
                      │ MCP tool calls  │ MCP tool calls
           ┌──────────▼──┐     ┌────────▼────────┐
-          │   n8n-vet   │     │     n8nac       │
+          │   n8n-proctor   │     │     n8nac       │
           │ (validation)│     │ (authoring/     │
           │             │     │  deploy)        │
           └──┬──────────┘     └────────┬────────┘
@@ -73,13 +73,13 @@ The architecture must serve these goals, derived from the vision, PRD, and engin
 
 **Local workflow artifacts** are the source of truth. Workflows are authored as n8n-as-code TypeScript files and versioned locally. n8n is a deployment/runtime surface, not the authoring environment.
 
-**n8n-vet and n8nac are sibling tools**, not dependency/wrapper. The agent coordinates both independently: n8nac for workflow authoring and deployment, n8n-vet for validation. n8n-vet uses `@n8n-as-code/transformer` as a library dependency for `.ts` workflow parsing, but does not wrap, proxy, or orchestrate n8nac itself.
+**n8n-proctor and n8nac are sibling tools**, not dependency/wrapper. The agent coordinates both independently: n8nac for workflow authoring and deployment, n8n-proctor for validation. n8n-proctor uses `@n8n-as-code/transformer` as a library dependency for `.ts` workflow parsing, but does not wrap, proxy, or orchestrate n8nac itself.
 
 **n8n instance** is the execution backend. It is required only for execution-backed validation. Static analysis operates entirely offline.
 
 **n8n MCP tools** are used for whole-workflow execution (`test_workflow`), execution result inspection (`get_execution`), and pin data schema discovery (`prepare_test_pin_data`). MCP is the sole execution backend.
 
-**The agent** is the sole direct consumer. It calls both n8n-vet and n8nac as independent MCP tool surfaces, receives structured diagnostic summaries from n8n-vet, and decides what to fix or deploy next.
+**The agent** is the sole direct consumer. It calls both n8n-proctor and n8nac as independent MCP tool surfaces, receives structured diagnostic summaries from n8n-proctor, and decides what to fix or deploy next.
 
 **The supervising human** reads diagnostic summaries when needed but does not operate the tool directly.
 
@@ -298,19 +298,19 @@ The system should recommend static-only validation when the change is purely str
 ### Local artifacts (always available)
 
 - n8n-as-code TypeScript workflow files: parsed via the `@n8n-as-code/transformer` package into a graph representation
-- Trust state: maintained locally by n8n-vet
+- Trust state: maintained locally by n8n-proctor
 
 No n8n instance or network access required. This is the foundation for all static analysis.
 
 ### Relationship to n8nac
 
-n8n-vet and n8nac are **independent sibling tools** that the agent coordinates. They are not in a dependency/wrapper relationship.
+n8n-proctor and n8nac are **independent sibling tools** that the agent coordinates. They are not in a dependency/wrapper relationship.
 
 - **n8nac** is responsible for workflow authoring, sync, and deployment. The agent calls n8nac to create, edit, and push workflows.
-- **n8n-vet** is responsible for validation. The agent calls n8n-vet to validate workflow slices and paths.
-- The agent decides when to call each tool and in what order. n8n-vet does not invoke n8nac operations.
+- **n8n-proctor** is responsible for validation. The agent calls n8n-proctor to validate workflow slices and paths.
+- The agent decides when to call each tool and in what order. n8n-proctor does not invoke n8nac operations.
 
-n8n-vet uses `@n8n-as-code/transformer` as a **library dependency** for parsing `.ts` workflow files into AST form. This is a package-level dependency on the transformer, not a runtime integration with the n8nac tool itself.
+n8n-proctor uses `@n8n-as-code/transformer` as a **library dependency** for parsing `.ts` workflow files into AST form. This is a package-level dependency on the transformer, not a runtime integration with the n8nac tool itself.
 
 ### MCP tools (execution backend)
 

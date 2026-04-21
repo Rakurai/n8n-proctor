@@ -1,5 +1,5 @@
 /**
- * MCP test client — spawns n8n-vet's MCP server as a child process,
+ * MCP test client — spawns n8n-proctor's MCP server as a child process,
  * connects via stdio transport, and provides typed methods for all 4 tools.
  */
 
@@ -55,7 +55,7 @@ export async function createMcpTestClient(): Promise<McpTestClient> {
     args: [serverPath],
   });
 
-  const client = new Client({ name: 'n8n-vet-test', version: '0.1.0' });
+  const client = new Client({ name: 'n8n-proctor-test', version: '0.1.0' });
   await client.connect(transport);
 
   async function callTool(name: string, args: Record<string, unknown>): Promise<McpToolResponse> {

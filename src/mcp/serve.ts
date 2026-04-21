@@ -29,7 +29,7 @@ async function connectToN8n(url: string, token: string): Promise<McpToolCaller |
       },
     });
 
-    const client = new Client({ name: 'n8n-vet', version: '0.1.0' });
+    const client = new Client({ name: 'n8n-proctor', version: '0.1.0' });
     await client.connect(transport as Transport);
 
     const callTool: McpToolCaller = async (toolName, args) => {

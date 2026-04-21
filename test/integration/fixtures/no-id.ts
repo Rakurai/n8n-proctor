@@ -5,7 +5,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 
 @workflow({
     id: '',
-    name: 'n8n-vet-test--no-id',
+    name: 'n8n-proctor-test--no-id',
     active: false,
 })
 export class N8nVetTestNoIdWorkflow {

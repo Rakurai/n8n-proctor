@@ -19,11 +19,11 @@ describe('.mcp.json configuration', () => {
     readFileSync(resolve(ROOT, '.mcp.json'), 'utf-8'),
   );
 
-  it('declares an n8n-vet server', () => {
-    expect(mcpJson.mcpServers['n8n-vet']).toBeDefined();
+  it('declares an n8n-proctor server', () => {
+    expect(mcpJson.mcpServers['n8n-proctor']).toBeDefined();
   });
 
-  const server = mcpJson.mcpServers['n8n-vet']!;
+  const server = mcpJson.mcpServers['n8n-proctor']!;
 
   it('uses node as command (stdio transport)', () => {
     expect(server.command).toBe('node');
@@ -34,8 +34,8 @@ describe('.mcp.json configuration', () => {
     expect(server.args[0]).toContain('dist/mcp/serve.js');
   });
 
-  it('passes all required env vars (N8N_VET_DATA_DIR, NODE_PATH)', () => {
-    for (const key of ['N8N_VET_DATA_DIR', 'NODE_PATH']) {
+  it('passes all required env vars (N8N_PROCTOR_DATA_DIR, NODE_PATH)', () => {
+    for (const key of ['N8N_PROCTOR_DATA_DIR', 'NODE_PATH']) {
       expect(server.env, `missing env var: ${key}`).toHaveProperty(key);
     }
   });

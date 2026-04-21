@@ -1,5 +1,5 @@
 {
-  "name": "n8n-vet",
+  "name": "n8n-proctor",
   "owner": {
     "name": "Rakurai"
   },
@@ -8,7 +8,7 @@
   },
   "plugins": [
     {
-      "name": "n8n-vet",
+      "name": "n8n-proctor",
       "source": "./",
       "description": "Guardrailed validation control for agent-built n8n workflows"
     }

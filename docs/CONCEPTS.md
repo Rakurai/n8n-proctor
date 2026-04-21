@@ -261,7 +261,7 @@ The lifecycle has three steps:
 
 1. **Validate (before push).** Static analysis runs locally against workflow source files. It does not require a running n8n instance. It catches structural and data-flow problems: broken expression references, data loss through replacement, schema mismatches, missing parameters. This step is cheap, fast, and always available.
 
-2. **Push.** The agent pushes the workflow to n8n via n8nac. This assigns `metadata.id` and deploys the workflow. n8n-vet does not push — the agent coordinates this step independently.
+2. **Push.** The agent pushes the workflow to n8n via n8nac. This assigns `metadata.id` and deploys the workflow. n8n-proctor does not push — the agent coordinates this step independently.
 
 3. **Test (after push).** Execution-backed testing runs against a live n8n instance after the workflow has been pushed/deployed. It catches runtime problems that static analysis cannot: Code node output shape, LLM response format, conditional logic correctness, actual data values. This step has real cost and requires the workflow to exist in n8n.
 

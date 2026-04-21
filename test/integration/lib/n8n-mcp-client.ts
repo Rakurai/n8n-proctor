@@ -1,7 +1,7 @@
 /**
  * n8n native MCP client — connects to n8n's built-in MCP server via
  * Streamable HTTP transport and returns a McpToolCaller compatible with
- * n8n-vet's execution subsystem.
+ * n8n-proctor's execution subsystem.
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -27,7 +27,7 @@ export async function createN8nMcpCaller(
     },
   });
 
-  const client = new Client({ name: 'n8n-vet-integration', version: '0.1.0' });
+  const client = new Client({ name: 'n8n-proctor-integration', version: '0.1.0' });
   await client.connect(transport);
 
   const callTool: McpToolCaller = async (toolName: string, args: Record<string, unknown>): Promise<unknown> => {

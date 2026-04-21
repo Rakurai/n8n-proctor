@@ -2,7 +2,7 @@
  * Snapshot persistence — save and load serialized WorkflowGraph snapshots
  * for change detection between validation runs.
  *
- * Snapshots are stored in `.n8n-vet/snapshots/{workflowId}.json` and contain
+ * Snapshots are stored in `.n8n-proctor/snapshots/{workflowId}.json` and contain
  * enough information to reconstruct a WorkflowGraph for `computeChangeSet`.
  * The raw AST is excluded to keep snapshots lightweight.
  */
@@ -16,7 +16,7 @@ import { nodeIdentity } from '../types/identity.js';
 import type { SerializedEdge, SerializedGraphNode, WorkflowSnapshot } from './types.js';
 
 const SNAPSHOTS_SUBDIR = 'snapshots';
-const DEFAULT_SNAPSHOTS_DIR = '.n8n-vet/snapshots';
+const DEFAULT_SNAPSHOTS_DIR = '.n8n-proctor/snapshots';
 
 /** Load a previously saved workflow snapshot and reconstruct a WorkflowGraph. */
 export function loadSnapshot(workflowId: string, dataDir?: string): WorkflowGraph | null {
@@ -49,7 +49,7 @@ function snapshotPath(workflowId: string, dataDir?: string): string {
 }
 
 function resolveSnapshotsDir(): string {
-  const envDir = process.env.N8N_VET_DATA_DIR;
+  const envDir = process.env.N8N_PROCTOR_DATA_DIR;
   if (envDir) {
     return join(envDir, SNAPSHOTS_SUBDIR);
   }

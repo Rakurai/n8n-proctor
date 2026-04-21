@@ -22,7 +22,7 @@ The product will be built as a **standalone package** that is a **sibling tool t
 
 ### Why
 
-This preserves the project’s distinct identity as a validation control tool. n8n-vet and n8nac are independent tools that the agent coordinates — n8nac for workflow authoring and deployment, n8n-vet for validation. n8n-vet uses `@n8n-as-code/transformer` as a library dependency for `.ts` workflow parsing, but does not wrap, proxy, or orchestrate n8nac itself.
+This preserves the project’s distinct identity as a validation control tool. n8n-proctor and n8nac are independent tools that the agent coordinates — n8nac for workflow authoring and deployment, n8n-proctor for validation. n8n-proctor uses `@n8n-as-code/transformer` as a library dependency for `.ts` workflow parsing, but does not wrap, proxy, or orchestrate n8nac itself.
 
 This project is philosophically aligned with n8nac:
 
@@ -365,11 +365,11 @@ Plugin components:
 * `hooks/` — `SessionStart` hook for dependency installation into `${CLAUDE_PLUGIN_DATA}`
 * `plugin.json` — manifest with `userConfig` for n8n host/API key (prompted at enable time, sensitive values stored in keychain)
 * `bin/` — CLI binary added to PATH when plugin is active
-* `${CLAUDE_PLUGIN_DATA}` — persistent directory for trust state and snapshots (replaces `.n8n-vet/` in project root)
+* `${CLAUDE_PLUGIN_DATA}` — persistent directory for trust state and snapshots (replaces `.n8n-proctor/` in project root)
 
 ### Standalone MCP server (secondary distribution)
 
-The same MCP server can run independently via `npx` or direct installation for use with other MCP clients (VS Code Copilot, Claude Desktop, other agents). Trust state falls back to `.n8n-vet/` in the project directory when not running as a plugin.
+The same MCP server can run independently via `npx` or direct installation for use with other MCP clients (VS Code Copilot, Claude Desktop, other agents). Trust state falls back to `.n8n-proctor/` in the project directory when not running as a plugin.
 
 ### Why dual
 

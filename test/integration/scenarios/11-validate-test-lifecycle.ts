@@ -68,7 +68,7 @@ async function run(ctx: IntegrationContext): Promise<void> {
 
   // Step 2: Test execution with fresh deps (avoids pin-data-unavailable for
   // statically-trusted nodes that lack cached execution artifacts)
-  const testDir = join(tmpdir(), `n8n-vet-lifecycle-test-${Date.now()}`);
+  const testDir = join(tmpdir(), `n8n-proctor-lifecycle-test-${Date.now()}`);
   const testTrustDir = join(testDir, 'trust');
   const testSnapshotDir = join(testDir, 'snapshots');
   mkdirSync(testTrustDir, { recursive: true });

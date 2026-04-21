@@ -4,7 +4,7 @@
  * isolated temp directories.
  *
  * This ensures each test scenario's trust state and snapshots are fully
- * isolated from each other and from the user's real .n8n-vet directory.
+ * isolated from each other and from the user's real .n8n-proctor directory.
  */
 
 import { buildDeps } from '../../../src/deps.js';

@@ -79,7 +79,7 @@ export async function setup(): Promise<IntegrationContext> {
   }
 
   // Create temp dirs for trust/snapshot isolation
-  const base = join(tmpdir(), `n8n-vet-integ-${Date.now()}`);
+  const base = join(tmpdir(), `n8n-proctor-integ-${Date.now()}`);
   const trustDir = join(base, 'trust');
   const snapshotDir = join(base, 'snapshots');
   mkdirSync(trustDir, { recursive: true });
@@ -105,7 +105,7 @@ export async function setup(): Promise<IntegrationContext> {
  * trust/snapshot directories. Inherits shared fields from the base context.
  */
 export function createScenarioContext(base: IntegrationContext): IntegrationContext {
-  const dir = join(tmpdir(), `n8n-vet-scenario-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const dir = join(tmpdir(), `n8n-proctor-scenario-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
   const trustDir = join(dir, 'trust');
   const snapshotDir = join(dir, 'snapshots');
   mkdirSync(trustDir, { recursive: true });

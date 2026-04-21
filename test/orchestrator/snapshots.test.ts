@@ -160,8 +160,8 @@ describe('deriveWorkflowId', () => {
   });
 });
 
-describe('snapshot N8N_VET_DATA_DIR resolution', () => {
-  const ENV_KEY = 'N8N_VET_DATA_DIR';
+describe('snapshot N8N_PROCTOR_DATA_DIR resolution', () => {
+  const ENV_KEY = 'N8N_PROCTOR_DATA_DIR';
   const CUSTOM_DIR = join(resolve('.'), '.scratch/test-snapshots-env');
   let originalEnv: string | undefined;
 
@@ -169,7 +169,7 @@ describe('snapshot N8N_VET_DATA_DIR resolution', () => {
     if (existsSync(CUSTOM_DIR)) {
       rmSync(CUSTOM_DIR, { recursive: true, force: true });
     }
-    const defaultDir = join(resolve('.'), '.n8n-vet/snapshots');
+    const defaultDir = join(resolve('.'), '.n8n-proctor/snapshots');
     if (existsSync(defaultDir)) {
       rmSync(defaultDir, { recursive: true, force: true });
     }
@@ -184,7 +184,7 @@ describe('snapshot N8N_VET_DATA_DIR resolution', () => {
     cleanup();
   });
 
-  it('uses N8N_VET_DATA_DIR/snapshots/ when env var is set', () => {
+  it('uses N8N_PROCTOR_DATA_DIR/snapshots/ when env var is set', () => {
     originalEnv = process.env[ENV_KEY];
     process.env[ENV_KEY] = CUSTOM_DIR;
 
@@ -198,13 +198,13 @@ describe('snapshot N8N_VET_DATA_DIR resolution', () => {
     expect(loaded!.nodes.size).toBe(3);
   });
 
-  it('uses .n8n-vet/snapshots when N8N_VET_DATA_DIR is absent', () => {
+  it('uses .n8n-proctor/snapshots when N8N_PROCTOR_DATA_DIR is absent', () => {
     originalEnv = process.env[ENV_KEY];
     delete process.env[ENV_KEY];
 
     const graph = testGraph();
     saveSnapshot('env-test-2', graph);
-    const defaultDir = join(resolve('.'), '.n8n-vet/snapshots');
+    const defaultDir = join(resolve('.'), '.n8n-proctor/snapshots');
     expect(existsSync(defaultDir)).toBe(true);
 
     const loaded = loadSnapshot('env-test-2');

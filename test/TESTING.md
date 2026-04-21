@@ -1,6 +1,6 @@
 # Testing Guide
 
-Reference document for unit and integration testing in n8n-vet.
+Reference document for unit and integration testing in n8n-proctor.
 
 ## Running Tests
 
@@ -183,13 +183,13 @@ git diff test/integration/fixtures/
 ### Debugging Failures
 
 1. Run failing scenario in isolation: `npm run test:integration -- --scenario 03 --verbose`
-2. Check workflow on n8n (names start with `n8n-vet-test--`)
+2. Check workflow on n8n (names start with `n8n-proctor-test--`)
 3. Check execution history: `n8nac execution list --workflow-id <id>`
 4. Failure messages include fixture name, expected outcome, and actual outcome
 
 ### The `availableInMCP` Workaround
 
-n8n requires `availableInMCP: true` in workflow settings for MCP tool calls to work. Older n8nac versions strip this flag on push. The test setup re-enables it via REST API if needed, caching the result in `.local-state.json` (gitignored). This is the **only** use of the n8n REST API in n8n-vet.
+n8n requires `availableInMCP: true` in workflow settings for MCP tool calls to work. Older n8nac versions strip this flag on push. The test setup re-enables it via REST API if needed, caching the result in `.local-state.json` (gitignored). This is the **only** use of the n8n REST API in n8n-proctor.
 
 ---
 
@@ -199,7 +199,7 @@ Hard-won knowledge from building the test suite.
 
 ### Noop/NoOp name mismatch
 
-n8nac names the No-Op node `'Noop'` (PascalCase) in the workflow graph. n8n's execution data uses `'NoOp'`. This means annotation matching against execution results shows `'skipped'` instead of `'validated'` for that node. Not a bug in n8n-vet — it's a naming inconsistency between the two tools. Scenario 02 documents this with an explicit assertion.
+n8nac names the No-Op node `'Noop'` (PascalCase) in the workflow graph. n8n's execution data uses `'NoOp'`. This means annotation matching against execution results shows `'skipped'` instead of `'validated'` for that node. Not a bug in n8n-proctor — it's a naming inconsistency between the two tools. Scenario 02 documents this with an explicit assertion.
 
 ### Guardrail evaluation order matters
 

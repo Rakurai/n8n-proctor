@@ -2,7 +2,7 @@
  * CLI entry point — parses arguments, dispatches to command functions,
  * formats output, and sets exit code.
  *
- * Usage: n8n-vet <command> <workflow-path> [options]
+ * Usage: n8n-proctor <command> <workflow-path> [options]
  * Commands: validate, trust, explain
  */
 
@@ -23,7 +23,7 @@ import {
 
 // ── Usage ───────────────────────────────────────────────────────
 
-const USAGE = `Usage: n8n-vet <command> <workflow-path> [options]
+const USAGE = `Usage: n8n-proctor <command> <workflow-path> [options]
 
 Commands:
   validate   Validate an n8n workflow (static analysis)

@@ -42,7 +42,7 @@ export interface IDestinationNode {
 }
 ```
 
-The `mode` field is critical for n8n-vet: `inclusive` mode runs the destination itself, while `exclusive` runs only its parents. This maps directly to "validate this node" vs "validate this node's inputs."
+The `mode` field is critical for n8n-proctor: `inclusive` mode runs the destination itself, while `exclusive` runs only its parents. This maps directly to "validate this node" vs "validate this node's inputs."
 
 ### The `run()` Method (Non-Partial)
 
@@ -52,7 +52,7 @@ The `mode` field is critical for n8n-vet: `inclusive` mode runs the destination 
 
 Partial execution requires a trigger as the graph root. `findTriggerForPartialExecution` finds one by walking parents. If no trigger exists, it falls back to the closest parent with run data. If neither exists, it throws `'Connect a trigger to run this node'`.
 
-For n8n-vet implications: workflows without triggers cannot use partial execution. Pin data on the trigger avoids needing a real trigger event.
+For n8n-proctor implications: workflows without triggers cannot use partial execution. Pin data on the trigger avoids needing a real trigger event.
 
 ### Interaction with Pin Data
 
@@ -107,7 +107,7 @@ type FullManualExecutionFromKnownTriggerPayload = {
 
 ### Verdict
 
-Bounded execution is **production-grade and well-engineered** inside n8n. The partial execution pipeline handles cycles, branching, disabled nodes, AI utility nodes, and tool-as-node patterns. However, it is **only accessible via the REST API**, not MCP. n8n-vet must use `POST /workflows/:id/run` with `destinationNode` to get bounded execution. The MCP tools are whole-workflow only.
+Bounded execution is **production-grade and well-engineered** inside n8n. The partial execution pipeline handles cycles, branching, disabled nodes, AI utility nodes, and tool-as-node patterns. However, it is **only accessible via the REST API**, not MCP. n8n-proctor must use `POST /workflows/:id/run` with `destinationNode` to get bounded execution. The MCP tools are whole-workflow only.
 
 ---
 
@@ -151,11 +151,11 @@ Pin data is `Record<string, INodeExecutionData[]>` where each entry is an array 
 
 The `normalizePinData()` utility handles the common mistake of sending flat objects without the `json` wrapper.
 
-### Cost for n8n-vet
+### Cost for n8n-proctor
 
 Pin data construction maps directly to fixture generation:
 
-1. **For previously-executed workflows**: Tier 1 schema inference from execution history is automatic and free. n8n-vet can call `prepare_test_pin_data` (MCP) or replicate its logic locally.
+1. **For previously-executed workflows**: Tier 1 schema inference from execution history is automatic and free. n8n-proctor can call `prepare_test_pin_data` (MCP) or replicate its logic locally.
 
 2. **For new workflows**: Need Tier 2 (node type schemas) or Tier 3 (empty stubs). Agent must generate realistic data. This is where "trusted boundary" pin data from prior validations becomes valuable.
 
@@ -163,7 +163,7 @@ Pin data construction maps directly to fixture generation:
 
 ### Verdict
 
-Pin data construction is **low-cost for most cases**. The three-tier system means n8n-vet can usually generate pin data automatically from execution history. The format is simple (JSON wrapper around fixture data). The main challenge is Tier 3 (no schema) which requires either agent-generated data or user-provided fixtures.
+Pin data construction is **low-cost for most cases**. The three-tier system means n8n-proctor can usually generate pin data automatically from execution history. The format is simple (JSON wrapper around fixture data). The main challenge is Tier 3 (no schema) which requires either agent-generated data or user-provided fixtures.
 
 ---
 
@@ -183,7 +183,7 @@ Pin data construction is **low-cost for most cases**. The three-tier system mean
 
 **Best for**: Whole-workflow smoke tests where you want a simple pass/fail answer.
 
-**Limitations for n8n-vet**: Cannot bound execution to a slice. Cannot inspect per-node results. Cannot do partial execution with existing run data.
+**Limitations for n8n-proctor**: Cannot bound execution to a slice. Cannot inspect per-node results. Cannot do partial execution with existing run data.
 
 ### Surface 2: `execute_workflow` MCP Tool
 
@@ -209,7 +209,7 @@ Pin data construction is **low-cost for most cases**. The three-tier system mean
 - Supports **truncation**: `truncateData: 5` limits items per output to 5
 - Returns full `IRunExecutionData` structure when `includeData: true`
 
-**Best for**: Inspecting execution results with surgical precision. The `nodeNames` filter directly supports n8n-vet's "inspect only the slice" pattern.
+**Best for**: Inspecting execution results with surgical precision. The `nodeNames` filter directly supports n8n-proctor's "inspect only the slice" pattern.
 
 ### Surface 4: `POST /workflows/:id/run` REST API
 
@@ -232,9 +232,9 @@ Pin data construction is **low-cost for most cases**. The three-tier system mean
 - `runPartialWorkflow2()`: Partial execution with full pipeline (subgraph, start nodes, cycles)
 - `processRunExecutionData()`: Low-level execution of pre-built execution state
 
-**Best for**: Direct programmatic use if n8n-vet were to import n8n-core. Requires setting up `IWorkflowExecuteAdditionalData` which includes credentials, hooks, and execution context -- not trivial to replicate outside n8n's DI container.
+**Best for**: Direct programmatic use if n8n-proctor were to import n8n-core. Requires setting up `IWorkflowExecuteAdditionalData` which includes credentials, hooks, and execution context -- not trivial to replicate outside n8n's DI container.
 
-### Recommended Split for n8n-vet
+### Recommended Split for n8n-proctor
 
 | Operation | Backend | Rationale |
 |-----------|---------|-----------|
@@ -246,7 +246,7 @@ Pin data construction is **low-cost for most cases**. The three-tier system mean
 
 ### Verdict
 
-The execution backend split is clear. **REST API is required for bounded execution** (the core value prop of n8n-vet). **MCP tools are sufficient for whole-workflow runs and result inspection.** The `get_execution` tool's `nodeNames` filter is a strong fit for slice-focused diagnostics. n8n-vet should use REST for execution and MCP for inspection.
+The execution backend split is clear. **REST API is required for bounded execution** (the core value prop of n8n-proctor). **MCP tools are sufficient for whole-workflow runs and result inspection.** The `get_execution` tool's `nodeNames` filter is a strong fit for slice-focused diagnostics. n8n-proctor should use REST for execution and MCP for inspection.
 
 ---
 
@@ -292,7 +292,7 @@ The `get_execution` MCP tool implements `filterExecutionData()` which:
 2. Filters `pinData` to only requested `nodeNames`
 3. Truncates output items per node to `truncateData` count
 
-This is exactly what n8n-vet needs: "show me what happened at nodes X, Y, Z with at most 5 items each."
+This is exactly what n8n-proctor needs: "show me what happened at nodes X, Y, Z with at most 5 items each."
 
 ### Error State Extraction
 
@@ -335,7 +335,7 @@ Sub-workflow execution is opaque at the parent level. You get:
 - `metadata.subExecution: { executionId, workflowId }` on the output items
 - The executionId can be used to fetch the sub-workflow's execution data separately
 
-n8n-vet would need a separate `get_execution` call per sub-workflow to inspect sub-workflow internals.
+n8n-proctor would need a separate `get_execution` call per sub-workflow to inspect sub-workflow internals.
 
 ### What Cannot Be Inspected
 
@@ -346,7 +346,7 @@ n8n-vet would need a separate `get_execution` call per sub-workflow to inspect s
 
 ### Verdict
 
-Execution inspection quality is **excellent for n8n-vet's needs**. The `get_execution` MCP tool with `nodeNames` filtering provides surgical access to exactly the nodes in a validation slice. Error states are available at execution, node, and item levels. Path reconstruction is possible from `runData` key presence and output-index analysis. The main gap is sub-workflow opacity -- inspecting sub-workflow internals requires additional API calls.
+Execution inspection quality is **excellent for n8n-proctor's needs**. The `get_execution` MCP tool with `nodeNames` filtering provides surgical access to exactly the nodes in a validation slice. Error states are available at execution, node, and item levels. Path reconstruction is possible from `runData` key presence and output-index analysis. The main gap is sub-workflow opacity -- inspecting sub-workflow internals requires additional API calls.
 
 ---
 
@@ -362,9 +362,9 @@ Execution inspection quality is **excellent for n8n-vet's needs**. The `get_exec
 | Can paths be reconstructed from execution data? | Yes, via runData key presence and output-index analysis | High |
 | Can errors be filtered to specific nodes? | Yes, at execution/node/item levels | High |
 
-### Critical Implication for n8n-vet Architecture
+### Critical Implication for n8n-proctor Architecture
 
-n8n-vet **must use the REST API** for its core bounded-execution feature. The MCP tools are useful for whole-workflow testing and result inspection, but they lack `destinationNode` support. This means n8n-vet needs:
+n8n-proctor **must use the REST API** for its core bounded-execution feature. The MCP tools are useful for whole-workflow testing and result inspection, but they lack `destinationNode` support. This means n8n-proctor needs:
 
 1. An authenticated HTTP client for `POST /workflows/:id/run`
 2. A way to construct `IWorkflowExecutionDataProcess`-shaped payloads with `destinationNode`, `runData`, and `pinData`
@@ -382,4 +382,4 @@ Added: 2026-04-19 (during phase 012-execution-backend-revision implementation)
 
 2. **The n8n REST public API is read-only for executions.** The public API (authenticated via API key) exposes only GET endpoints for executions — listing and retrieving execution data. There are no public POST endpoints for triggering workflow runs. Workflow execution by external clients must go through MCP tools (`test_workflow`, `execute_workflow`) or webhooks.
 
-3. **Impact on n8n-vet architecture.** The "Critical Implication" section's recommendation to use `POST /workflows/:id/run` for bounded execution is not feasible with API key auth. Bounded execution via `destinationNode` is only available to the editor frontend. n8n-vet must rely on MCP tools for execution triggering, which means whole-workflow runs only (no partial execution). This was confirmed empirically during phase 012 implementation.
+3. **Impact on n8n-proctor architecture.** The "Critical Implication" section's recommendation to use `POST /workflows/:id/run` for bounded execution is not feasible with API key auth. Bounded execution via `destinationNode` is only available to the editor frontend. n8n-proctor must rely on MCP tools for execution triggering, which means whole-workflow runs only (no partial execution). This was confirmed empirically during phase 012 implementation.

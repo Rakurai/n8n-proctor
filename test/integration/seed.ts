@@ -40,7 +40,7 @@ interface WorkflowCreatePayload {
 
 // ── Fixture Definitions ──────────────────────────────────────────
 
-const PREFIX = 'n8n-vet-test--';
+const PREFIX = 'n8n-proctor-test--';
 
 function trigger(id: string, name: string, pos: [number, number]): WorkflowNode {
   return {

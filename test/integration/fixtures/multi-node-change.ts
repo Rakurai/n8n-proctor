@@ -1,7 +1,7 @@
 import { workflow, node, links } from '@n8n-as-code/transformer';
 
 // <workflow-map>
-// Workflow : n8n-vet-test--multi-node-change
+// Workflow : n8n-proctor-test--multi-node-change
 // Nodes   : 5  |  Connections: 4
 //
 // NODE INDEX
@@ -28,7 +28,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 
 @workflow({
     id: 'qMksecSMzxrEy7xg',
-    name: 'n8n-vet-test--multi-node-change',
+    name: 'n8n-proctor-test--multi-node-change',
     active: false,
     settings: { executionOrder: 'v1', callerPolicy: 'workflowsFromSameOwner', availableInMCP: true },
 })

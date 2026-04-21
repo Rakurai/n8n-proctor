@@ -1,15 +1,15 @@
 ---
 name: validate-workflow
-description: Use to validate n8n-as-code workflow files, debug n8n execution failures, check data flow between nodes, or decide whether a workflow change needs runtime validation. Requires the n8n-vet MCP server.
+description: Use to validate n8n-as-code workflow files, debug n8n execution failures, check data flow between nodes, or decide whether a workflow change needs runtime validation. Requires the n8n-proctor MCP server.
 license: MIT
 compatibility: ">=0.1.0"
 ---
 
 # n8n Workflow Validation
 
-You have access to n8n-vet tools for validating n8n workflows. n8n-vet keeps validation **bounded, local, and diagnostic** rather than broad and wasteful.
+You have access to n8n-proctor tools for validating n8n workflows. n8n-proctor keeps validation **bounded, local, and diagnostic** rather than broad and wasteful.
 
-n8n-vet is a **sibling tool** to n8nac. n8n-vet validates; n8nac authors and pushes. You coordinate both tools independently.
+n8n-proctor is a **sibling tool** to n8nac. n8n-proctor validates; n8nac authors and pushes. You coordinate both tools independently.
 
 ## Tools
 
@@ -75,13 +75,13 @@ No n8n instance required. Call `validate` with `kind: 'changed'` (or `'nodes'`).
 
 ### Step 2: Push the workflow
 
-After static validation passes, push with `n8nac push`. n8n-vet does not push. The first push assigns `metadata.id` in the workflow file, which is required for execution testing.
+After static validation passes, push with `n8nac push`. n8n-proctor does not push. The first push assigns `metadata.id` in the workflow file, which is required for execution testing.
 
 ### Step 3: Test (after push)
 
 Requires a deployed workflow. Call `test` with the desired target. Runs a smoke test via MCP, observes the actual execution path, and catches runtime issues (credential failures, external service errors, expression evaluation bugs).
 
-If `metadata.id` is missing when you call `test`, n8n-vet returns a precondition error.
+If `metadata.id` is missing when you call `test`, n8n-proctor returns a precondition error.
 
 ## Trust persistence
 

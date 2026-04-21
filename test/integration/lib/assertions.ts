@@ -2,7 +2,7 @@
  * Typed assertion helpers for integration test scenarios.
  *
  * Each function throws with a descriptive message on failure.
- * Operates on n8n-vet's DiagnosticSummary and TrustStatusReport types.
+ * Operates on n8n-proctor's DiagnosticSummary and TrustStatusReport types.
  */
 
 import type { DiagnosticSummary, ErrorClassification } from '../../../src/types/diagnostic.js';

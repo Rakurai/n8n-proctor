@@ -1,10 +1,10 @@
 {
   "mcpServers": {
-    "n8n-vet": {
+    "n8n-proctor": {
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/dist/mcp/serve.js"],
       "env": {
-        "N8N_VET_DATA_DIR": "${CLAUDE_PLUGIN_DATA}",
+        "N8N_PROCTOR_DATA_DIR": "${CLAUDE_PLUGIN_DATA}",
         "NODE_PATH": "${CLAUDE_PLUGIN_DATA}/node_modules",
         "N8N_HOST": "${user_config.n8n_host}",
         "N8N_MCP_TOKEN": "${user_config.n8n_mcp_token}",

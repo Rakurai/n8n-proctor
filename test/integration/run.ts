@@ -90,7 +90,7 @@ function pushAllFixtures(ctx: IntegrationContext, verbose: boolean): void {
 async function main(): Promise<void> {
   const args = parseArgs();
 
-  console.log('n8n-vet integration tests\n');
+  console.log('n8n-proctor integration tests\n');
 
   // Setup — verify prerequisites, load manifest, create temp dirs
   let ctx: IntegrationContext;

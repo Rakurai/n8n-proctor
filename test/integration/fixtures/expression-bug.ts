@@ -1,7 +1,7 @@
 import { workflow, node, links } from '@n8n-as-code/transformer';
 
 // <workflow-map>
-// Workflow : n8n-vet-test--expression-bug
+// Workflow : n8n-proctor-test--expression-bug
 // Nodes   : 2  |  Connections: 1
 //
 // NODE INDEX
@@ -22,7 +22,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 
 @workflow({
     id: 'XSpcho6Ex2B9zyCb',
-    name: 'n8n-vet-test--expression-bug',
+    name: 'n8n-proctor-test--expression-bug',
     active: false,
     settings: { executionOrder: 'v1', callerPolicy: 'workflowsFromSameOwner', availableInMCP: false },
 })

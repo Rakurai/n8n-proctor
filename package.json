@@ -1,5 +1,5 @@
 {
-  "name": "n8n-vet",
+  "name": "n8n-proctor",
   "version": "0.1.0",
   "description": "Guardrailed validation control for agent-built n8n workflows",
   "type": "module",
@@ -17,10 +17,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/Rakurai/n8n-vet.git"
+    "url": "https://github.com/Rakurai/n8n-proctor.git"
   },
   "bin": {
-    "n8n-vet": "./dist/cli/index.js"
+    "n8n-proctor": "./dist/cli/index.js"
   },
   "scripts": {
     "build": "tsc",

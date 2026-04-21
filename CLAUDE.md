@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-n8n-vet is a guardrailed validation control tool for agent-built n8n workflows. It reduces agent thrash by keeping validation local, bounded, diagnostic, and cheap — focusing on workflow slices and paths rather than whole-workflow reruns.
+n8n-proctor is a guardrailed validation control tool for agent-built n8n workflows. It reduces agent thrash by keeping validation local, bounded, diagnostic, and cheap — focusing on workflow slices and paths rather than whole-workflow reruns.
 
 **Status:** v0.1.0 implemented. Phases 001–015 are complete (shared types, static analysis, trust, guardrails, execution, diagnostics, orchestrator, MCP/CLI surface, plugin wrapper, integration testing, audit remediations, execution backend revision, test suite audit, n8nac sibling alignment, validate/test separation). Tier-3 pin data sourcing is wired — `constructPinData` uses MCP `prepare_test_pin_data` schemas when cached artifacts are unavailable. The validate→test lifecycle is integration-tested (scenario 15).
 

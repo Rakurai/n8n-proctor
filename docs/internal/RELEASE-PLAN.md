@@ -1,6 +1,6 @@
-# Release Plan — n8n-vet v0.1.0
+# Release Plan — n8n-proctor v0.1.0
 
-Target: Claude Code plugin release at `github.com/Rakurai/n8n-vet`.
+Target: Claude Code plugin release at `github.com/Rakurai/n8n-proctor`.
 Copilot agent support: deferred (post-v0.1.0).
 
 ---
@@ -32,7 +32,7 @@ Decisions made during planning. Reference these when questions come up during ex
 
 3. ~~**LICENSE file.**~~ Needs adding (MIT).
 
-4. ~~**Repo rename.**~~ Remote is `Rakurai/n8n-vet`. Local folder is `n8n-check` — cosmetic only, no action needed.
+4. ~~**Repo rename.**~~ Remote is `Rakurai/n8n-proctor`. Local folder is `n8n-check` — cosmetic only, no action needed.
 
 ---
 
@@ -44,7 +44,7 @@ These can't be delegated to agents.
 
 | # | Task | Blocking? |
 |---|------|-----------|
-| H1 | ~~Create GitHub repo at `Rakurai/n8n-vet`~~ | Done |
+| H1 | ~~Create GitHub repo at `Rakurai/n8n-proctor`~~ | Done |
 | H2 | ~~Decide n8nac dependency resolution~~ | Done — npm registry |
 | H3 | ~~Provision n8n test instance~~ | Done — localhost:5678. Add API key to `.env`. |
 | H4 | Add `LICENSE` file (MIT) | No — quick, do anytime |
@@ -82,7 +82,7 @@ Already in progress. These are the audit.findings.md items.
 |---|------|------|
 | B1 | Fix biome lint errors (`biome check --write src/`) | A5 (after NodeIdentity refactor touches most files) |
 | B2 | Fix cli-binary.test.ts exit code mismatch (S3-24) | — |
-| B3 | Fix floating promises in cli/index.ts and bin/n8n-vet (S3-15, S3-23) | — |
+| B3 | Fix floating promises in cli/index.ts and bin/n8n-proctor (S3-15, S3-23) | — |
 | B4 | Remove `passWithNoTests: true` from vitest config (S3-3) | — |
 | B5 | Run full test suite, verify green | B1–B4 |
 
@@ -94,7 +94,7 @@ Already in progress. These are the audit.findings.md items.
 | C2 | Write CHANGELOG.md with actual v0.1.0 entries | B5 (needs final feature list) |
 | C3 | Review and trim CONCEPTS.md for public audience | — |
 | C4 | Move internal docs to `docs/internal/`: audit files, PRD, research | — |
-| C5 | Update plugin.json: set repo to `Rakurai/n8n-vet` | — |
+| C5 | Update plugin.json: set repo to `Rakurai/n8n-proctor` | — |
 | C6 | Update SKILL.md: verify tool descriptions match current API | B5 |
 
 #### Phase D: Tooling & CI
@@ -147,7 +147,7 @@ Final verification before pushing the release tag.
 [ ] README has correct repo URL and install instructions
 [ ] CHANGELOG has v0.1.0 entries
 [ ] plugin.json version matches package.json version (0.1.0)
-[ ] plugin.json repo URL is Rakurai/n8n-vet
+[ ] plugin.json repo URL is Rakurai/n8n-proctor
 [ ] No file: dependencies in package.json
 [ ] LICENSE file present
 [ ] npm pack produces clean tarball (inspect contents)

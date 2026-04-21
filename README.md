@@ -1,4 +1,4 @@
-# n8n-vet
+# n8n-proctor
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
@@ -19,11 +19,11 @@ Stop re-running the whole workflow. Vet what changed.
 Add the marketplace and install the plugin:
 
 ```
-/plugin marketplace add Rakurai/n8n-vet
-/plugin install n8n-vet@n8n-vet
+/plugin marketplace add Rakurai/n8n-proctor
+/plugin install n8n-proctor@n8n-proctor
 ```
 
-Then configure the two MCP servers n8n-vet needs at runtime — **n8n-mcp** (n8n's
+Then configure the two MCP servers n8n-proctor needs at runtime — **n8n-mcp** (n8n's
 built-in MCP server for workflow execution) and **n8nac** (for workflow authoring):
 
 ```sh
@@ -34,7 +34,7 @@ claude mcp add n8nac -- npx --yes n8nac mcp
 ### From source
 
 ```sh
-git clone https://github.com/Rakurai/n8n-vet.git && cd n8n-vet
+git clone https://github.com/Rakurai/n8n-proctor.git && cd n8n-proctor
 npm install && npm run build
 ```
 
@@ -45,7 +45,7 @@ Add to your `.vscode/settings.json`:
 ```jsonc
 {
   "mcp.servers": {
-    "n8n-vet": { "command": "node", "args": ["./dist/mcp/serve.js"] },
+    "n8n-proctor": { "command": "node", "args": ["./dist/mcp/serve.js"] },
     "n8n-mcp": { "url": "http://localhost:5678/mcp-server/http" },
     "n8nac": { "command": "npx", "args": ["--yes", "n8nac", "mcp"] }
   }
@@ -59,7 +59,7 @@ Add to your `.vscode/settings.json`:
 ```json
 {
   "mcpServers": {
-    "n8n-vet": {
+    "n8n-proctor": {
       "command": "node",
       "args": ["./dist/mcp/serve.js"]
     }
@@ -70,18 +70,18 @@ Add to your `.vscode/settings.json`:
 **CLI** (for local debugging):
 
 ```sh
-npx n8n-vet validate workflow.ts
+npx n8n-proctor validate workflow.ts
 ```
 
 ## The problem
 
 Agents building n8n workflows waste enormous time on validation. They re-run entire workflows after single-node changes. They invent ad hoc tests that check nothing new. They chase failures in regions they didn't touch. The validation loop itself becomes the bottleneck — not the code.
 
-n8n-vet fixes this by making validation targeted, trust-aware, and cheap by default.
+n8n-proctor fixes this by making validation targeted, trust-aware, and cheap by default.
 
 ## What it does
 
-n8n-vet is a validation control tool for agent-built n8n workflows. It exposes an MCP server that agents call during development. Given a workflow file and a change, it:
+n8n-proctor is a validation control tool for agent-built n8n workflows. It exposes an MCP server that agents call during development. Given a workflow file and a change, it:
 
 - **Targets the change, not the workflow.** Computes the smallest useful slice around what changed, selects a path through it, and validates that — not the whole graph.
 - **Tracks trust across edits.** Nodes validated in prior runs stay trusted until they change. Previously validated, unchanged regions become trusted boundaries instead of repeated work.
@@ -117,7 +117,7 @@ For the engineering details: [Strategy](docs/STRATEGY.md) covers the target-sele
 
 ## MCP tools
 
-n8n-vet exposes three MCP tools:
+n8n-proctor exposes three MCP tools:
 
 | Tool | Purpose |
 |------|---------|
@@ -132,16 +132,16 @@ Default behavior when the agent calls `validate` with no target: validate whatev
 A secondary CLI exists for local debugging and development:
 
 ```
-n8n-vet validate workflow.ts              # static analysis on changes
-n8n-vet validate workflow.ts --layer both # static + execution
-n8n-vet trust workflow.ts                 # inspect trust state
-n8n-vet explain workflow.ts               # preview guardrail decision
-n8n-vet validate workflow.ts --json       # raw JSON (same as MCP output)
+n8n-proctor validate workflow.ts              # static analysis on changes
+n8n-proctor validate workflow.ts --layer both # static + execution
+n8n-proctor trust workflow.ts                 # inspect trust state
+n8n-proctor explain workflow.ts               # preview guardrail decision
+n8n-proctor validate workflow.ts --json       # raw JSON (same as MCP output)
 ```
 
 ## Built on
 
-- [n8n-as-code](https://github.com/EtienneLescot/n8n-as-code) (n8nac) — sibling tool for workflow authoring and push; n8n-vet and n8nac are independent tools that an agent coordinates, not layered dependencies
+- [n8n-as-code](https://github.com/EtienneLescot/n8n-as-code) (n8nac) — sibling tool for workflow authoring and push; n8n-proctor and n8nac are independent tools that an agent coordinates, not layered dependencies
 - TypeScript, strict mode, ESM
 - MCP server via `@modelcontextprotocol/sdk`
 
