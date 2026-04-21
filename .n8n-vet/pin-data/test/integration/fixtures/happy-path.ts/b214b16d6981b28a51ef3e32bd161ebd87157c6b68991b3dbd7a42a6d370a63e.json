@@ -1,8 +1,0 @@
-[
-  {
-    "json": {
-      "greeting": "hello",
-      "lifecycle": "validate-then-test"
-    }
-  }
-]
