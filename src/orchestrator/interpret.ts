@@ -12,10 +12,12 @@
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import stringify from 'json-stable-stringify';
+import { deriveNextAction } from '../diagnostics/next-action.js';
 import { ExecutionPreconditionError } from '../execution/errors.js';
 import { buildExecutionInternalDeps, prepareExecution } from '../execution/prepare.js';
 import type { ExecutionPreparationResult, PinData } from '../execution/types.js';
 import type { EvaluationInput } from '../guardrails/types.js';
+import { detectDisconnectedNodes } from '../static-analysis/disconnected.js';
 import { computeNodeHashes } from '../trust/hash.js';
 import type { DiagnosticSummary, ValidationMeta } from '../types/diagnostic.js';
 import type { WorkflowGraph } from '../types/graph.js';
@@ -213,6 +215,12 @@ export async function interpret(
     durationMs: Date.now() - startTime,
   };
 
+  // Build node classification map for coverage computation
+  const nodeClassifications = new Map<string, import('../types/graph.js').NodeClassification>();
+  for (const [name, node] of graph.nodes) {
+    nodeClassifications.set(name, node.classification);
+  }
+
   const summary = buildSynthesis(
     staticFindings,
     executionResult.executionData,
@@ -222,6 +230,7 @@ export async function interpret(
     resolvedTarget,
     executionResult.capabilities,
     meta,
+    nodeClassifications,
     deps,
   );
 
@@ -229,6 +238,12 @@ export async function interpret(
   for (const warning of executionResult.warnings) {
     summary.hints.push({ node: null, message: warning, severity: 'info' });
   }
+
+  // Surface disconnected node warnings
+  summary.hints.push(...detectDisconnectedNodes(graph));
+
+  // Derive next action recommendation
+  summary.nextAction = deriveNextAction(summary);
 
   // Compact mode: omit skipped annotations (opaque nodes with no findings)
   if (request.compact) {
@@ -248,6 +263,7 @@ export async function interpret(
       paths,
       resolvedTarget,
       usedPinData: executionResult.usedPinData,
+      executionData: executionResult.executionData,
     },
     deps,
   );
@@ -267,8 +283,8 @@ function hashPinData(pinData: PinData): string {
 }
 
 function errorDiagnostic(message: string, runId: string, startTime: number): DiagnosticSummary {
-  return {
-    schemaVersion: 1,
+  const summary: DiagnosticSummary = {
+    schemaVersion: 2,
     status: 'error',
     target: { description: 'N/A', nodes: [], automatic: false },
     evidenceBasis: 'static',
@@ -286,6 +302,17 @@ function errorDiagnostic(message: string, runId: string, startTime: number): Dia
     nodeAnnotations: [],
     guardrailActions: [],
     hints: [],
+    coverage: {
+      analyzableRatio: 1,
+      counts: {
+        'shape-preserving': 0,
+        'shape-augmenting': 0,
+        'shape-replacing': 0,
+        'shape-opaque': 0,
+      },
+      totalInScope: 0,
+    },
+    nextAction: { type: 'none', targetNodes: null, blocking: false, reason: '' },
     capabilities: { staticAnalysis: true, mcpTools: false },
     meta: {
       runId,
@@ -294,6 +321,8 @@ function errorDiagnostic(message: string, runId: string, startTime: number): Dia
       durationMs: Date.now() - startTime,
     },
   };
+  summary.nextAction = deriveNextAction(summary);
+  return summary;
 }
 
 function skippedDiagnostic(
@@ -302,8 +331,8 @@ function skippedDiagnostic(
   runId: string,
   startTime: number,
 ): DiagnosticSummary {
-  return {
-    schemaVersion: 1,
+  const summary: DiagnosticSummary = {
+    schemaVersion: 2,
     status: 'skipped',
     target,
     evidenceBasis: 'static',
@@ -312,6 +341,17 @@ function skippedDiagnostic(
     nodeAnnotations: [],
     guardrailActions: guardrailDecisions,
     hints: [],
+    coverage: {
+      analyzableRatio: 1,
+      counts: {
+        'shape-preserving': 0,
+        'shape-augmenting': 0,
+        'shape-replacing': 0,
+        'shape-opaque': 0,
+      },
+      totalInScope: 0,
+    },
+    nextAction: { type: 'none', targetNodes: null, blocking: false, reason: '' },
     capabilities: { staticAnalysis: true, mcpTools: false },
     meta: {
       runId,
@@ -320,4 +360,6 @@ function skippedDiagnostic(
       durationMs: Date.now() - startTime,
     },
   };
+  summary.nextAction = deriveNextAction(summary);
+  return summary;
 }

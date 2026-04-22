@@ -73,7 +73,7 @@ function emptyTrustState(workflowId = 'test'): TrustState {
 
 function passSummary(resolvedTarget: ResolvedTarget, meta: ValidationMeta): DiagnosticSummary {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     status: 'pass',
     target: resolvedTarget,
     evidenceBasis: 'static',
@@ -82,6 +82,12 @@ function passSummary(resolvedTarget: ResolvedTarget, meta: ValidationMeta): Diag
     nodeAnnotations: [],
     guardrailActions: [],
     hints: [],
+    coverage: {
+      analyzableRatio: 1,
+      counts: { 'shape-preserving': 0, 'shape-augmenting': 0, 'shape-replacing': 0, 'shape-opaque': 0 },
+      totalInScope: 0,
+    },
+    nextAction: { type: 'continue-building', targetNodes: null, blocking: false, reason: 'Validation passed — continue building.' },
     capabilities: { staticAnalysis: true, mcpTools: false },
     meta,
   };
@@ -194,7 +200,7 @@ describe('interpret() — changed-target static-only pipeline', () => {
 
     const result = await interpret(baseRequest, deps);
 
-    expect(result.schemaVersion).toBe(1);
+    expect(result.schemaVersion).toBe(2);
     expect(result.status).toBe('pass');
   });
 
@@ -263,7 +269,7 @@ describe('interpret() — changed-target static-only pipeline', () => {
     const deps = createMockDeps({
       diagnostics: {
         synthesize: vi.fn().mockReturnValue({
-          schemaVersion: 1,
+          schemaVersion: 2,
           status: 'fail',
           target: { description: 'test', nodes: [], automatic: false },
           evidenceBasis: 'static',
@@ -272,6 +278,8 @@ describe('interpret() — changed-target static-only pipeline', () => {
           nodeAnnotations: [],
           guardrailActions: [],
           hints: [],
+          coverage: { analyzableRatio: 1, counts: { 'shape-preserving': 0, 'shape-augmenting': 0, 'shape-replacing': 0, 'shape-opaque': 0 }, totalInScope: 0 },
+          nextAction: { type: 'fix-errors', targetNodes: null, blocking: true, reason: '1 error(s) found — fix the listed issues.' },
           capabilities: { staticAnalysis: true, mcpTools: false },
           meta: { runId: 'x', executionId: null, timestamp: '', durationMs: 0 },
         }),
@@ -706,7 +714,7 @@ describe('interpret() — trust persistence across runs (US5 T015)', () => {
     const deps = createMockDeps({
       diagnostics: {
         synthesize: vi.fn().mockReturnValue({
-          schemaVersion: 1,
+          schemaVersion: 2,
           status: 'fail',
           target: { description: 'test', nodes: [], automatic: false },
           evidenceBasis: 'static',
@@ -715,6 +723,8 @@ describe('interpret() — trust persistence across runs (US5 T015)', () => {
           nodeAnnotations: [],
           guardrailActions: [],
           hints: [],
+          coverage: { analyzableRatio: 1, counts: { 'shape-preserving': 0, 'shape-augmenting': 0, 'shape-replacing': 0, 'shape-opaque': 0 }, totalInScope: 0 },
+          nextAction: { type: 'fix-errors', targetNodes: null, blocking: true, reason: '1 error(s) found — fix the listed issues.' },
           capabilities: { staticAnalysis: true, mcpTools: false },
           meta: { runId: 'x', executionId: null, timestamp: '', durationMs: 0 },
         }),

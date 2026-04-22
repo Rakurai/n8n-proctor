@@ -89,11 +89,50 @@ export interface DiagnosticHint {
   severity: 'info' | 'warning' | 'danger';
 }
 
+/** Static analysis coverage assessment for nodes in scope. */
+export interface AnalysisCoverage {
+  /** Fraction of in-scope nodes whose output shape is statically determinable (0-1). */
+  analyzableRatio: number;
+  /** Per-classification node counts within the resolved target scope. */
+  counts: {
+    'shape-preserving': number;
+    'shape-augmenting': number;
+    'shape-replacing': number;
+    'shape-opaque': number;
+  };
+  /** Total nodes in scope. */
+  totalInScope: number;
+}
+
 /** Which validation capabilities are available in the current environment. */
 export interface AvailableCapabilities {
   /** Static analysis is always available; no external dependencies required. */
   staticAnalysis: true;
   mcpTools: boolean;
+}
+
+/** Recommended next step for the consuming agent after this validation run. */
+export type NextActionType =
+  | 'fix-errors'
+  | 'fix-workflow'
+  | 'fix-request'
+  | 'push-workflow'
+  | 'use-validate'
+  | 'narrow-scope'
+  | 'review-warnings'
+  | 'force-revalidate'
+  | 'continue-building'
+  | 'none';
+
+/** Structured next-step recommendation for the consuming agent. */
+export interface NextAction {
+  type: NextActionType;
+  /** Nodes relevant to this action. Null when not node-specific. */
+  targetNodes: NodeIdentity[] | null;
+  /** Whether this blocks further workflow building. */
+  blocking: boolean;
+  /** One-sentence reason for this recommendation. */
+  reason: string;
 }
 
 /** Metadata about the validation run itself, independent of its results. */
@@ -111,7 +150,7 @@ export interface ValidationMeta {
 /** The canonical structured output of a completed validation run. */
 export interface DiagnosticSummary {
   /** Schema version for forward compatibility. */
-  schemaVersion: 1;
+  schemaVersion: 2;
   status: 'pass' | 'fail' | 'error' | 'skipped';
   /** The resolved scope that was validated. */
   target: ResolvedTarget;
@@ -123,6 +162,10 @@ export interface DiagnosticSummary {
   nodeAnnotations: NodeAnnotation[];
   guardrailActions: GuardrailDecision[];
   hints: DiagnosticHint[];
+  /** Static analysis coverage for nodes in scope. */
+  coverage: AnalysisCoverage;
+  /** Recommended next step for the consuming agent. */
+  nextAction: NextAction;
   capabilities: AvailableCapabilities;
   meta: ValidationMeta;
 }

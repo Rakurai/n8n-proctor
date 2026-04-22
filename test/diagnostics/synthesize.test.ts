@@ -31,6 +31,11 @@ function makeInput(overrides: Partial<SynthesisInput> = {}): SynthesisInput {
     resolvedTarget: threeNodeTarget,
     capabilities: staticOnlyCapabilities,
     meta: testMeta,
+    nodeClassifications: new Map([
+      ['httpRequest', 'shape-replacing'],
+      ['setFields', 'shape-augmenting'],
+      ['codeNode', 'shape-opaque'],
+    ]),
     ...overrides,
   };
 }
@@ -46,9 +51,29 @@ describe('synthesize — static-only path (US1)', () => {
     expect(result.status).toBe('fail');
   });
 
-  it('sets schemaVersion to 1', () => {
+  it('sets schemaVersion to 2', () => {
     const result = synthesize(makeInput());
-    expect(result.schemaVersion).toBe(1);
+    expect(result.schemaVersion).toBe(2);
+  });
+
+  it('computes coverage from nodeClassifications and resolved target', () => {
+    const result = synthesize(makeInput());
+    expect(result.coverage.totalInScope).toBe(3);
+    expect(result.coverage.counts['shape-replacing']).toBe(1);
+    expect(result.coverage.counts['shape-augmenting']).toBe(1);
+    expect(result.coverage.counts['shape-opaque']).toBe(1);
+    expect(result.coverage.counts['shape-preserving']).toBe(0);
+    // 2 out of 3 nodes are analyzable (not opaque)
+    expect(result.coverage.analyzableRatio).toBeCloseTo(2 / 3);
+  });
+
+  it('reports analyzableRatio 1 when no opaque nodes exist', () => {
+    const result = synthesize(makeInput({
+      resolvedTarget: singleNodeTarget,
+      nodeClassifications: new Map([['httpRequest', 'shape-replacing']]),
+    }));
+    expect(result.coverage.analyzableRatio).toBe(1);
+    expect(result.coverage.totalInScope).toBe(1);
   });
 
   it('sets evidenceBasis to static when executionData is null', () => {
@@ -121,7 +146,7 @@ describe('synthesize — static-only path (US1)', () => {
 
   it('produces complete structure with correct value types', () => {
     const result = synthesize(makeInput({ staticFindings: [dataLossError] }));
-    expect(result.schemaVersion).toBe(1);
+    expect(result.schemaVersion).toBe(2);
     expect(result.status).toBe('fail');
     expect(result.target).toBe(threeNodeTarget);
     expect(result.evidenceBasis).toBe('static');
@@ -173,6 +198,11 @@ describe('synthesize — execution-backed path (US2)', () => {
       resolvedTarget: threeNodeTarget,
       capabilities: fullCapabilities,
       meta: executionMeta,
+      nodeClassifications: new Map([
+        ['httpRequest', 'shape-replacing'],
+        ['setFields', 'shape-augmenting'],
+        ['codeNode', 'shape-opaque'],
+      ]),
       ...overrides,
     };
   }
@@ -404,10 +434,15 @@ describe('synthesize — full pipeline integration (T036)', () => {
       resolvedTarget: threeNodeTarget,
       capabilities: fullCapabilities,
       meta: executionMeta,
+      nodeClassifications: new Map([
+        ['httpRequest', 'shape-replacing'],
+        ['setFields', 'shape-augmenting'],
+        ['codeNode', 'shape-opaque'],
+      ]),
     });
 
     // Status: fail (has errors from both layers)
-    expect(result.schemaVersion).toBe(1);
+    expect(result.schemaVersion).toBe(2);
     expect(result.status).toBe('fail');
 
     // Evidence basis: execution ran
@@ -470,6 +505,13 @@ describe('synthesize — compactness verification (T037)', () => {
       resolvedTarget: fiveNodeTarget,
       capabilities: fullCapabilities,
       meta: executionMeta,
+      nodeClassifications: new Map([
+        ['httpRequest', 'shape-replacing'],
+        ['setFields', 'shape-augmenting'],
+        ['codeNode', 'shape-opaque'],
+        ['ifNode', 'shape-preserving'],
+        ['respondToWebhook', 'shape-replacing'],
+      ]),
     });
     const json = JSON.stringify(result, null, 2);
     const lineCount = json.split('\n').length;

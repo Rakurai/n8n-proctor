@@ -8,10 +8,13 @@
 
 import { z } from 'zod';
 import type { DiagnosticSummary } from '../types/diagnostic.js';
+import type { NodeClassification } from '../types/graph.js';
+import type { NodeIdentity } from '../types/identity.js';
 import type { ValidationEvidence } from '../types/target.js';
 import { assignAnnotations } from './annotations.js';
 import { classifyExecutionErrors, classifyStaticFindings, orderErrors } from './errors.js';
 import { collectHints } from './hints.js';
+import { deriveNextAction } from './next-action.js';
 import { reconstructPath } from './path.js';
 import { determineStatus } from './status.js';
 import type { SynthesisInput } from './types.js';
@@ -37,6 +40,7 @@ export function synthesize(input: SynthesisInput): DiagnosticSummary {
     resolvedTarget,
     capabilities,
     meta,
+    nodeClassifications,
   } = input;
 
   const status = determineStatus(staticFindings, executionData, guardrailDecisions);
@@ -58,8 +62,10 @@ export function synthesize(input: SynthesisInput): DiagnosticSummary {
 
   const evidenceBasis = determineEvidenceBasis(executionData);
 
-  return {
-    schemaVersion: 1,
+  const coverage = computeCoverage(resolvedTarget.nodes, nodeClassifications);
+
+  const summary: DiagnosticSummary = {
+    schemaVersion: 2,
     status,
     target: resolvedTarget,
     evidenceBasis,
@@ -68,9 +74,15 @@ export function synthesize(input: SynthesisInput): DiagnosticSummary {
     nodeAnnotations,
     guardrailActions: guardrailDecisions,
     hints,
+    coverage,
+    nextAction: { type: 'none', targetNodes: null, blocking: false, reason: '' },
     capabilities,
     meta,
   };
+
+  summary.nextAction = deriveNextAction(summary);
+
+  return summary;
 }
 
 const SynthesisInputSchema = z.object({
@@ -123,6 +135,7 @@ const SynthesisInputSchema = z.object({
     timestamp: z.string().min(1),
     durationMs: z.number().nonnegative(),
   }),
+  nodeClassifications: z.instanceof(Map),
 });
 
 function validateInput(input: SynthesisInput): void {
@@ -138,4 +151,27 @@ function determineEvidenceBasis(
   const executionRan = executionData !== null;
   if (executionRan) return 'execution';
   return 'static';
+}
+
+function computeCoverage(
+  nodes: readonly NodeIdentity[],
+  classifications: Map<string, NodeClassification>,
+): import('../types/diagnostic.js').AnalysisCoverage {
+  const counts = {
+    'shape-preserving': 0,
+    'shape-augmenting': 0,
+    'shape-replacing': 0,
+    'shape-opaque': 0,
+  };
+
+  for (const node of nodes) {
+    const classification = classifications.get(node) ?? 'shape-opaque';
+    counts[classification]++;
+  }
+
+  const totalInScope = nodes.length;
+  const analyzable = totalInScope - counts['shape-opaque'];
+  const analyzableRatio = totalInScope > 0 ? analyzable / totalInScope : 1;
+
+  return { analyzableRatio, counts, totalInScope };
 }

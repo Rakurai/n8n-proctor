@@ -38,6 +38,8 @@ export interface SynthesisInput {
   resolvedTarget: ResolvedTarget;
   capabilities: AvailableCapabilities;
   meta: ValidationMeta;
+  /** Node classifications for all nodes in scope, used to compute coverage. */
+  nodeClassifications: Map<string, import('../types/graph.js').NodeClassification>;
   /** Whether static analysis was actually run (vs. skipped). Defaults to staticFindings.length > 0. */
   staticAnalysisRan?: boolean;
 }

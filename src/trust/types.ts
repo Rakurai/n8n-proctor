@@ -47,7 +47,7 @@ const nodeTrustRecordSchema = z
     contentHash: z.string(),
     validatedBy: z.string(),
     validatedAt: z.string(),
-    validatedWith: z.enum(['static', 'execution']).optional(),
+    validatedWith: z.enum(['static', 'execution', 'execution-opportunistic']).optional(),
     validationLayer: z.enum(['static', 'execution', 'both']).optional(),
     fixtureHash: z.string().nullable(),
   })
@@ -58,7 +58,7 @@ const nodeTrustRecordSchema = z
       contentHash: rec.contentHash,
       validatedBy: rec.validatedBy,
       validatedAt: rec.validatedAt,
-      validatedWith: validatedWith as 'static' | 'execution',
+      validatedWith: validatedWith as 'static' | 'execution' | 'execution-opportunistic',
       fixtureHash: rec.fixtureHash,
     };
   });

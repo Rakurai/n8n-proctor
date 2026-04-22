@@ -10,8 +10,8 @@ n8n-proctor is a validation control tool for agent-built n8n workflows. It expos
 
 - **Targets the change, not the workflow.** Computes the smallest useful slice around what changed, selects a path through it, and validates that — not the whole graph.
 - **Tracks trust across edits.** Nodes validated in prior runs stay trusted until they change. Previously validated, unchanged regions become trusted boundaries instead of repeated work.
-- **Runs static analysis before touching n8n.** Expression tracing, data-loss detection, and schema checks run locally first. Execution against the n8n instance is reserved for cases where runtime evidence is actually needed.
-- **Returns structured diagnostics, not transcripts.** Compact JSON with classified errors, node annotations, and guardrail explanations. Optimized for agent token budgets, not human scrolling.
+- **Runs static analysis before touching n8n.** Expression tracing, data-loss detection, and disconnected node detection run locally first. Execution against the n8n instance is reserved for cases where runtime evidence is actually needed.
+- **Returns structured diagnostics, not transcripts.** Compact JSON with classified errors, node annotations, coverage assessment, next-action recommendations, and guardrail explanations. Optimized for agent token budgets, not human scrolling.
 - **Prevents low-value work.** Guardrails warn, narrow, redirect, or refuse requests that would waste time — identical reruns, overly broad targets, execution when static suffices.
 
 ## How it works

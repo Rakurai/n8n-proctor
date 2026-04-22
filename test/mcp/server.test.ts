@@ -98,7 +98,7 @@ function passSummary(): DiagnosticSummary {
     durationMs: 10,
   };
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     status: 'pass',
     target,
     evidenceBasis: 'static',
@@ -107,6 +107,12 @@ function passSummary(): DiagnosticSummary {
     nodeAnnotations: [],
     guardrailActions: [],
     hints: [],
+    coverage: {
+      analyzableRatio: 1,
+      counts: { 'shape-preserving': 0, 'shape-augmenting': 0, 'shape-replacing': 0, 'shape-opaque': 0 },
+      totalInScope: 0,
+    },
+    nextAction: { type: 'continue-building', targetNodes: null, blocking: false, reason: 'Validation passed — continue building.' },
     capabilities: { staticAnalysis: true, mcpTools: false },
     meta,
   };
@@ -213,7 +219,7 @@ describe('MCP server — validate tool', () => {
 
     expect(envelope.success).toBe(true);
     if (envelope.success) {
-      expect(envelope.data).toHaveProperty('schemaVersion', 1);
+      expect(envelope.data).toHaveProperty('schemaVersion', 2);
       expect(envelope.data).toHaveProperty('status');
     }
   });
@@ -468,7 +474,7 @@ describe('MCP server — test tool', () => {
 
     expect(envelope.success).toBe(true);
     if (envelope.success) {
-      expect(envelope.data).toHaveProperty('schemaVersion', 1);
+      expect(envelope.data).toHaveProperty('schemaVersion', 2);
       expect(envelope.data).toHaveProperty('status');
     }
   });

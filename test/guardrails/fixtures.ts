@@ -421,7 +421,7 @@ export function nullSummary(): null {
 /** Passed diagnostic summary. */
 export function passedSummary(targetNodes: string[]): DiagnosticSummary {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     status: 'pass',
     target: {
       description: 'test target',
@@ -438,6 +438,12 @@ export function passedSummary(targetNodes: string[]): DiagnosticSummary {
     nodeAnnotations: [],
     guardrailActions: [],
     hints: [],
+    coverage: {
+      analyzableRatio: 1,
+      counts: { 'shape-preserving': 0, 'shape-augmenting': 0, 'shape-replacing': 0, 'shape-opaque': 0 },
+      totalInScope: 0,
+    },
+    nextAction: { type: 'continue-building', targetNodes: null, blocking: false, reason: 'Validation passed — continue building.' },
     capabilities: { staticAnalysis: true, mcpTools: false },
     meta: {
       runId: 'run-prior-001',
@@ -498,7 +504,7 @@ export function failedSummary(
   }
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     status: 'fail',
     target: {
       description: 'test target',
@@ -511,6 +517,12 @@ export function failedSummary(
     nodeAnnotations: [],
     guardrailActions: [],
     hints: [],
+    coverage: {
+      analyzableRatio: 1,
+      counts: { 'shape-preserving': 0, 'shape-augmenting': 0, 'shape-replacing': 0, 'shape-opaque': 0 },
+      totalInScope: 0,
+    },
+    nextAction: { type: 'fix-errors', targetNodes: null, blocking: true, reason: '1 error(s) found — fix the listed issues.' },
     capabilities: { staticAnalysis: true, mcpTools: false },
     meta: {
       runId: 'run-prior-002',

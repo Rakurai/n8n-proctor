@@ -32,7 +32,8 @@ export type ValidationTarget =
 /**
  * Which evidence type backs a validation or test result.
  *
- * - `static`    — structural analysis only; no workflow execution
- * - `execution` — live execution against n8n
+ * - `static`                     — structural analysis only; no workflow execution
+ * - `execution`                  — live execution against n8n (targeted)
+ * - `execution-opportunistic`    — live execution trust harvested from out-of-scope nodes
  */
-export type ValidationEvidence = 'static' | 'execution';
+export type ValidationEvidence = 'static' | 'execution' | 'execution-opportunistic';

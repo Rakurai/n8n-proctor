@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-22
+
+### Added
+
+- **Disconnected node detection** — BFS from triggers flags unreachable nodes as warning hints. Handles disabled nodes (info severity), LangChain AI triggers, and no-trigger workflows.
+- **Coverage qualifier on DiagnosticSummary** — New `AnalysisCoverage` field with `analyzableRatio` and per-classification node counts. Always included (not removed in compact mode).
+- **Opportunistic trust harvesting** — After execution, out-of-scope nodes that ran successfully receive `execution-opportunistic` trust records. Trust priority prevents downgrades.
+- **`nextAction` recommendation** — Structured `NextAction` field on `DiagnosticSummary` encoding the highest-value next move (fix-errors, fix-workflow, fix-request, push-workflow, review-warnings, continue-building, force-revalidate, none).
+
+### Changed
+
+- **`schemaVersion` bumped to 2** — `DiagnosticSummary.schemaVersion` is now `2` (was `1`). New fields: `coverage`, `nextAction`.
+
 ## [0.2.2] - 2026-04-21
 
 ### Fixed

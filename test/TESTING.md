@@ -23,18 +23,18 @@ Integration scripts use `dotenv-cli` to load `.env` automatically.
 
 ## Unit Tests
 
-523 tests across 43 files. Every `src/` subsystem has a mirror in `test/`.
+621 tests across 54 files (vitest reports type-test `.test-d.ts` files in both type-check and runtime passes). Every `src/` subsystem has a mirror in `test/`.
 
 ### Layout
 
 | Directory | Covers | Key assertions |
 |-----------|--------|----------------|
-| `test/static-analysis/` | Graph parsing, expression tracing, data-loss detection, classification, params, schemas | Node connectivity, expression resolution, data-loss detection between shape-opaque and shape-sensitive nodes |
-| `test/trust/` | Hashing, change detection, trust state persistence | Content hash determinism, change-set identification, trust file read/write/update |
+| `test/static-analysis/` | Graph parsing, expression tracing, data-loss detection, classification, params, schemas, disconnected node detection | Node connectivity, expression resolution, data-loss detection between shape-opaque and shape-sensitive nodes, disconnected/unreachable node identification |
+| `test/trust/` | Hashing, change detection, trust state persistence, opportunistic trust harvesting | Content hash determinism, change-set identification, trust file read/write/update, execution-opportunistic evidence derivation |
 | `test/guardrails/` | Evaluate, evidence, narrow, redirect, rerun | Guardrail action selection for all 4 actions (proceed/warn/narrow/refuse), evidence summarization, narrowing heuristics, redirect logic, identical-rerun detection |
-| `test/execution/` | MCP client, capabilities, pin data, results | MCP tool call arguments, capability detection (mcp vs static-only), pin data construction from cache and tier-3, execution result mapping |
-| `test/diagnostics/` | Annotations, errors, hints, path, status, synthesize | Node annotation assignment, error classification mapping, hint generation, path reconstruction, status derivation, full synthesis from static + execution data |
-| `test/orchestrator/` | Interpret, path, resolve, snapshots | Request interpretation, path selection, target resolution, snapshot comparison |
+| `test/execution/` | MCP client, capabilities, lock, pin data, results | MCP tool call arguments, capability detection (mcp vs static-only), execution locking, pin data construction from cache and tier-3, execution result mapping |
+| `test/diagnostics/` | Annotations, errors, hints, path, status, synthesize, next-action | Node annotation assignment, error classification mapping, hint generation (including disconnected nodes), path reconstruction, status derivation, full synthesis from static + execution data, next-action recommendation derivation |
+| `test/orchestrator/` | Interpret, path, pinning, resolve, snapshots | Request interpretation, path selection, pin data orchestration, target resolution, snapshot comparison |
 | `test/mcp/` | MCP server | Tool registration, argument validation, error envelope mapping |
 | `test/cli/` | Commands, format | CLI argument parsing, human-readable formatting of diagnostics |
 | `test/plugin/` | CLI binary, hook, manifest, MCP config, skill, paths | n8nac plugin contract: hook.json, SKILL.md, MCP config, binary invocation, trust/snapshot path resolution |
@@ -65,7 +65,7 @@ Unit test fixtures live in `test/fixtures/workflows/` — static `.ts` and `.jso
 
 ## Integration Tests
 
-15 scenarios testing the full pipeline against a live n8n instance: parse → graph → trust → target → guardrails → analysis → execution → diagnostics.
+15 scenarios testing the full pipeline against a live n8n instance: parse → graph → trust → target → guardrails → analysis → execution → diagnostics. Plus 1 local-only scenario (16) that doesn't require MCP.
 
 ### Prerequisites
 
@@ -89,7 +89,7 @@ Copy `.env.example` to `.env` and fill in values (gitignored).
 
 | # | Name | Requires MCP | What it proves |
 |---|------|-------------|----------------|
-| 01 | static-only | No | Static analysis finds wiring error, produces correct classification, node annotations, hints |
+| 01 | static-only | No | Static analysis finds wiring error, produces correct classification, node annotations, hints, disconnected-node warning, coverage, nextAction |
 | 02 | execution-happy | Yes | Execution succeeds, path contains expected nodes in order, annotations for each node |
 | 03 | execution-failure | Yes (static fallback without) | External-service error classified correctly; static fallback works without MCP |
 | 04 | trust-lifecycle | No | Trust builds from validate, invalidates on edit, re-validate targets only changed + downstream |
@@ -104,6 +104,8 @@ Copy `.env.example` to `.env` and fill in values (gitignored).
 | 13 | pin-data | Yes | Explicit `pinData` parameter works, execution succeeds with mock upstream data |
 | 14 | expression-classification | Yes | **SKIP (SP3)** — n8n v2.16 expression engine too lenient; see Known Gaps |
 | 15 | validate-test-lifecycle | Yes | Trust carries across validate → test with shared deps; tier-3 pin data sourcing works |
+| 16 | next-action | No | `nextAction` recommendation: fix-errors on fail, continue-building on pass, force-revalidate on skip, review-warnings on pass+warnings |
+| 17 | opportunistic-harvest | Yes | Execution on narrow target records `execution-opportunistic` trust for out-of-scope nodes that ran successfully |
 
 ### Fixtures
 
@@ -112,7 +114,7 @@ Integration fixtures live in `test/integration/fixtures/`. They are real n8n wor
 | Fixture | Nodes | Purpose |
 |---------|-------|---------|
 | `happy-path.ts` | ManualTrigger → Set → Noop | Clean workflow, the baseline for pass scenarios |
-| `broken-wiring.ts` | ManualTrigger → Set → Process | Set references `$json.data` that Trigger doesn't produce |
+| `broken-wiring.ts` | ManualTrigger → Set + OrphanedHttp (disconnected) | Disconnected node detection — OrphanedHttp is not connected to any trigger |
 | `credential-failure.ts` | ManualTrigger → HTTP Request | HTTP node hits unreachable endpoint → external-service error |
 | `data-loss-passthrough.ts` | ManualTrigger → Code → Set | Code node is shape-opaque → data-loss hint on downstream Set |
 | `expression-bug.ts` | ManualTrigger → Set (bad expr) | Expression references non-existent node — currently untriggerable at runtime |
@@ -143,6 +145,8 @@ All in `test/integration/lib/assertions.ts`. Use these — don't inline checks i
 | `assertAnnotationCount(summary, expected)` | Total annotation count matches |
 | `assertHintPresent(summary, severity, substring?)` | Hint with severity exists, optionally containing text |
 | `assertHintCount(summary, expected)` | Total hint count matches |
+| `assertCoverage(summary, checks)` | `coverage.analyzableRatio`, `totalInScope`, or `shape-opaque` count matches |
+| `assertNextAction(summary, expectedType)` | `nextAction.type` matches expected action type |
 
 ### Writing Integration Scenarios
 
@@ -269,10 +273,12 @@ What's tested vs. what's not.
 | `evidenceBasis` | Yes | Yes | 01, 02, 03, 06, 07, 11, 13, 15 |
 | `executedPath` | Yes | Yes | 01 (null), 02 (order), 06, 13 |
 | `errors[]` | Yes | Yes | 01, 03 — classification + node |
-| `guardrailActions[]` | Yes | Yes | 05, 10 |
-| `hints[]` | Yes | Yes | 01 (info severity) |
+| `guardrailActions[]` | Yes | Yes | 05, 10, 16 |
+| `hints[]` | Yes | Yes | 01 (info + warning severity, disconnected nodes) |
 | `nodeAnnotations[]` | Yes | Yes | 01, 02, 03 |
 | `capabilities` | Yes | Yes | 01, 02, 03 |
+| `coverage` | Yes | Yes | 01 (analyzableRatio, totalInScope explicitly asserted) |
+| `nextAction` | Yes | Yes | 01, 16 (all 4 action types: fix-errors, continue-building, force-revalidate, review-warnings) |
 | `meta.executionId` | Yes | Yes | 02, 06, 11, 13 |
 
 ### MCP Tools via Transport

@@ -24,10 +24,12 @@ npm run build
 | `npm test` | Run unit tests (vitest) |
 | `npm run test:watch` | Watch mode |
 | `npm run test:integration` | Integration tests against live n8n |
+| `npm run test:integ:ready` | Check CI readiness (env, connectivity, fixtures) |
 | `npm run typecheck` | Type-check without emitting |
 | `npm run lint` | Lint with Biome |
 | `npm run lint:fix` | Auto-fix lint issues |
 | `npm run format` | Format with Biome |
+| `npm run ci` | Full gate: typecheck + lint + test + integration + check-version |
 
 ## Environment Variables
 
@@ -69,11 +71,11 @@ integration scenario inventory, fixture setup, assertion helpers, known gaps, an
 
 ```
 src/
-  static-analysis/    Graph parsing, expression tracing, schema validation
+  static-analysis/    Graph parsing, expression tracing, schema validation, disconnected detection
   trust/              Content hashing, change detection, trust persistence
   guardrails/         Proceed/narrow/redirect/refuse decisions
   execution/          MCP client for test_workflow / get_execution
-  diagnostics/        Structured summaries from static + execution results
+  diagnostics/        Structured summaries from static + execution results, next-action recommendation
   orchestrator/       Request interpretation, path selection, snapshots
   mcp/                MCP server (validate, trust_status, explain tools)
   cli/                CLI commands
@@ -95,3 +97,19 @@ docs/                 Design docs, specs, research
 - **Comments** — explain intent or invariants only. Don't narrate obvious operations.
 
 See [docs/CODING.md](docs/CODING.md) for the full coding standard.
+
+## Release Requirements
+
+Every new feature must have **integration test coverage** before release. Unit tests alone
+are insufficient — integration scenarios prove the feature works end-to-end through the full
+pipeline (parse → graph → trust → target → guardrails → analysis → execution → diagnostics).
+
+Specifically:
+- New `DiagnosticSummary` fields must be explicitly asserted in at least one integration scenario.
+- New error classifications or hint types must have a fixture that triggers them and a scenario that asserts them.
+- New guardrail behaviors must have a scenario that exercises the decision path.
+- New trust behaviors (evidence types, harvesting) must have a scenario that verifies the trust state after the operation.
+
+If a feature cannot be integration-tested due to platform limitations (e.g., n8n swallowing
+expression errors), document it as a Known Gap in [`test/TESTING.md`](test/TESTING.md) with
+the blocking reason and unblock path.

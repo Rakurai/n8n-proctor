@@ -4,7 +4,8 @@
  */
 
 import { writeCachedPinData } from '../../execution/pin-data.js';
-import type { PinData } from '../../execution/types.js';
+import type { ExecutionData, PinData } from '../../execution/types.js';
+import { findHarvestableNodes } from '../../trust/harvest.js';
 import { computeNodeHashes, computeWorkflowHash } from '../../trust/hash.js';
 import type { DiagnosticSummary, ResolvedTarget } from '../../types/diagnostic.js';
 import type { WorkflowGraph } from '../../types/graph.js';
@@ -25,6 +26,7 @@ export interface PersistContext {
   paths: PathDefinition[];
   resolvedTarget: ResolvedTarget;
   usedPinData: PinData | null;
+  executionData: ExecutionData | null;
 }
 
 /**
@@ -47,12 +49,13 @@ export async function persistResults(
     paths,
     resolvedTarget,
     usedPinData,
+    executionData,
   } = ctx;
   if (summary.status !== 'pass') return;
 
   // Record trust for nodes that were actually validated
   const validatedNodes = collectValidatedNodes(paths, resolvedTarget.nodes);
-  const updatedTrust = deps.trust.recordValidation(
+  let updatedTrust = deps.trust.recordValidation(
     activeTrust,
     validatedNodes,
     graph,
@@ -60,6 +63,36 @@ export async function persistResults(
     runId,
     fixtureHash,
   );
+
+  // Opportunistic trust harvesting: record trust for out-of-scope nodes
+  // that ran successfully during execution (never downgrade existing trust)
+  if (executionData !== null && tool === 'test') {
+    const pinnedNames = new Set<string>(usedPinData ? Object.keys(usedPinData) : []);
+    const targetSet = new Set<NodeIdentity>(resolvedTarget.nodes);
+    const harvestable = findHarvestableNodes(executionData, pinnedNames, targetSet, graph);
+
+    if (harvestable.length > 0) {
+      // Filter out nodes that already have equal-or-stronger trust
+      const eligible = harvestable.filter((nodeId) => {
+        const existing = updatedTrust.nodes.get(nodeId);
+        if (!existing) return true;
+        // execution > execution-opportunistic > static — never downgrade
+        return existing.validatedWith === 'static';
+      });
+
+      if (eligible.length > 0) {
+        updatedTrust = deps.trust.recordValidation(
+          updatedTrust,
+          eligible,
+          graph,
+          'execution-opportunistic',
+          runId,
+          fixtureHash,
+        );
+      }
+    }
+  }
+
   deps.trust.persistTrustState(updatedTrust, computeWorkflowHash(graph));
 
   // Save snapshot

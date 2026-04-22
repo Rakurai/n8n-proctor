@@ -89,7 +89,7 @@ function passSummary(): DiagnosticSummary {
     durationMs: 10,
   };
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     status: 'pass',
     target,
     evidenceBasis: 'static',
@@ -98,6 +98,12 @@ function passSummary(): DiagnosticSummary {
     nodeAnnotations: [],
     guardrailActions: [],
     hints: [],
+    coverage: {
+      analyzableRatio: 1,
+      counts: { 'shape-preserving': 0, 'shape-augmenting': 0, 'shape-replacing': 0, 'shape-opaque': 0 },
+      totalInScope: 0,
+    },
+    nextAction: { type: 'continue-building', targetNodes: null, blocking: false, reason: 'Validation passed — continue building.' },
     capabilities: { staticAnalysis: true, mcpTools: false },
     meta,
   };
@@ -178,7 +184,7 @@ describe('runValidate', () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.schemaVersion).toBe(1);
+      expect(result.data.schemaVersion).toBe(2);
       expect(result.data.status).toBe('pass');
     }
   });
@@ -284,7 +290,7 @@ describe('runTest', () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.schemaVersion).toBe(1);
+      expect(result.data.schemaVersion).toBe(2);
       expect(result.data.status).toBe('pass');
     }
   });

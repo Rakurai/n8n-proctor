@@ -6,7 +6,7 @@
  */
 
 import type { DiagnosticSummary, ErrorClassification } from '../../../src/types/diagnostic.js';
-import type { NodeAnnotationStatus } from '../../../src/types/diagnostic.js';
+import type { NodeAnnotationStatus, NextActionType } from '../../../src/types/diagnostic.js';
 import type { GuardrailAction } from '../../../src/types/guardrail.js';
 import type { McpResponse, McpErrorType } from '../../../src/errors.js';
 import type { TrustStatusDetailedReport } from '../../../src/types/surface.js';
@@ -291,6 +291,52 @@ export function assertHintCount(
     const found = summary.hints.map(h => `${h.severity}: ${h.message.slice(0, 60)}`).join('; ') || 'none';
     throw new Error(
       `Expected ${expected} hints, got ${summary.hints.length}: [${found}]${ctx}`,
+    );
+  }
+}
+
+export function assertCoverage(
+  summary: DiagnosticSummary,
+  checks: {
+    analyzableRatio?: number;
+    totalInScope?: number;
+    opaqueCount?: number;
+  },
+  fixture?: string,
+): void {
+  const ctx = fixture ? ` [fixture: ${fixture}]` : '';
+  if (checks.analyzableRatio !== undefined) {
+    if (Math.abs(summary.coverage.analyzableRatio - checks.analyzableRatio) > 0.01) {
+      throw new Error(
+        `Expected analyzableRatio ~${checks.analyzableRatio}, got ${summary.coverage.analyzableRatio}${ctx}`,
+      );
+    }
+  }
+  if (checks.totalInScope !== undefined) {
+    if (summary.coverage.totalInScope !== checks.totalInScope) {
+      throw new Error(
+        `Expected totalInScope ${checks.totalInScope}, got ${summary.coverage.totalInScope}${ctx}`,
+      );
+    }
+  }
+  if (checks.opaqueCount !== undefined) {
+    if (summary.coverage['counts']['shape-opaque'] !== checks.opaqueCount) {
+      throw new Error(
+        `Expected shape-opaque count ${checks.opaqueCount}, got ${summary.coverage['counts']['shape-opaque']}${ctx}`,
+      );
+    }
+  }
+}
+
+export function assertNextAction(
+  summary: DiagnosticSummary,
+  expectedType: NextActionType,
+  fixture?: string,
+): void {
+  const ctx = fixture ? ` [fixture: ${fixture}]` : '';
+  if (summary.nextAction.type !== expectedType) {
+    throw new Error(
+      `Expected nextAction.type '${expectedType}', got '${summary.nextAction.type}' (reason: ${summary.nextAction.reason})${ctx}`,
     );
   }
 }

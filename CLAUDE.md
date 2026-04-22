@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-proctor is a guardrailed validation control tool for agent-built n8n workflows. It reduces agent thrash by keeping validation local, bounded, diagnostic, and cheap — focusing on workflow slices and paths rather than whole-workflow reruns.
 
-**Status:** v0.2.0
+**Status:** v0.3.0
 
 ## Development Commands
 
@@ -15,12 +15,13 @@ npm run build          # TypeScript compilation (tsc)
 npm test               # Run all tests (vitest)
 npm run test:watch     # Watch mode
 npm run test:integration  # Integration tests (dotenv -- tsx)
+npm run test:integ:ready  # Check CI readiness for integration tests
 npm run typecheck      # Type-check without emitting (tsc --noEmit)
 npm run lint           # Lint with Biome (biome check src/)
 npm run lint:fix       # Auto-fix lint issues
 npm run format         # Format with Biome
 npm run check-version  # Verify version-bearing files match package.json
-npm run ci             # typecheck + lint + test + check-version
+npm run ci             # typecheck + lint + test + integration + check-version
 ```
 
 Run a single test file: `npx vitest run test/guardrails/evaluate.test.ts`
@@ -41,7 +42,12 @@ For the full testing guide (scenarios, fixtures, assertion helpers, known gaps),
 1. Bump `version` in `package.json`.
 2. Run `node scripts/check-version.js --fix` to update non-TS files.
 3. Update `CHANGELOG.md` with the new version entry.
-4. Run `npm run ci` to confirm everything is in sync.
+4. Run `npm run ci` to confirm everything is in sync (includes integration tests against live n8n).
+
+**Prerequisites for `npm run ci`:**
+- `.env` must be configured with `N8N_HOST`, `N8N_API_KEY`, `N8N_MCP_URL`, `N8N_MCP_TOKEN` (copy from `.env.example`).
+- A live n8n instance must be running and reachable at `N8N_HOST`.
+- Integration test fixtures must be seeded (`npm run test:integ:seed` if first run).
 
 ## Code Architecture
 
@@ -57,11 +63,11 @@ parse → graph → trust → target → guardrails → static analysis → exec
 
 | Subsystem | Location | Responsibility |
 |-----------|----------|----------------|
-| Static Analysis | `src/static-analysis/` | Graph parsing, expression tracing, data-loss detection, schema/param validation, node classification |
+| Static Analysis | `src/static-analysis/` | Graph parsing, expression tracing, data-loss detection, schema/param validation, node classification, disconnected node detection |
 | Trust | `src/trust/` | Content hashing, change detection, trust state persistence, rerun assessment |
 | Guardrails | `src/guardrails/` | Evaluate whether to proceed/narrow/redirect/refuse; evidence and narrowing logic |
 | Execution | `src/execution/` | Execution preparation (`prepare.ts`), MCP client (`test_workflow`, `get_execution`), pin data construction, capability detection (`'mcp' \| 'static-only'`) |
-| Diagnostics | `src/diagnostics/` | Synthesize structured summaries from static + execution results, error classification, hints |
+| Diagnostics | `src/diagnostics/` | Synthesize structured summaries from static + execution results, error classification, hints, next-action recommendation, coverage qualifier |
 | Orchestrator | `src/orchestrator/` | Request interpretation, path selection, workflow snapshots, phase delegation (`phases/validate`, `phases/synthesize`, `phases/persist`) |
 | MCP Surface | `src/mcp/` | MCP server exposing `validate`, `test`, `trust_status`, `explain` tools |
 | CLI | `src/cli/` | CLI commands and human-readable formatting |

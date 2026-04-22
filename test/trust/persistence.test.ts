@@ -119,6 +119,24 @@ describe('persistTrustState', () => {
     expect(loaded.nodes.get(ni('nodeB'))?.contentHash).toBe('hash-b');
   });
 
+  it('round-trips execution-opportunistic evidence', () => {
+    const nodes = new Map<NodeIdentity, NodeTrustRecord>();
+    nodes.set(ni('nodeA'), { ...makeRecord('hash-a'), validatedWith: 'execution-opportunistic' });
+    nodes.set(ni('nodeB'), makeRecord('hash-b'));
+
+    const state: TrustState = {
+      workflowId: 'wf-001',
+      nodes,
+      connectionsHash: 'conn-hash-001',
+    };
+
+    persistTrustState(state, 'wf-hash-001', tempDir);
+    const loaded = loadTrustState('wf-001', tempDir);
+
+    expect(loaded.nodes.get(ni('nodeA'))?.validatedWith).toBe('execution-opportunistic');
+    expect(loaded.nodes.get(ni('nodeB'))?.validatedWith).toBe('static');
+  });
+
   it('preserves other workflows in the file', () => {
     // Write workflow A
     const stateA: TrustState = {

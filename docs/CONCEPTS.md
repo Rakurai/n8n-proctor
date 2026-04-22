@@ -79,6 +79,8 @@ A validation run uses one of two evidence types:
 * **static validation** (cheap, local, no n8n instance needed) — structural inspection, reference tracing, data-flow analysis
 * **execution-backed testing** (expensive, requires n8n instance) — live smoke test, path observation, runtime error detection
 
+A third evidence type, **execution-opportunistic**, is derived automatically: when execution runs a node outside the current validation scope and it succeeds, n8n-proctor records that success as lower-priority trust evidence. This is not a separate operation — it piggybacks on existing execution runs to extend trust coverage at no additional cost.
+
 These are separate operations invoked via separate tools (`validate` and `test`). A single call produces one type of evidence, not both.
 
 Within a run, the tool may perform:
@@ -259,13 +261,15 @@ The **development lifecycle** is the operational model for how validation and te
 
 The lifecycle has three steps:
 
-1. **Validate (before push).** Static analysis runs locally against workflow source files. It does not require a running n8n instance. It catches structural and data-flow problems: broken expression references, data loss through replacement, schema mismatches, missing parameters. This step is cheap, fast, and always available.
+1. **Validate (before push).** Two complementary local checks. n8n-proctor's static analysis catches structural and data-flow problems: broken expression references, data loss through replacement, disconnected nodes. n8nac's `skills validate` checks node parameters against bundled schemas: invalid typeVersions, wrong operation values, type mismatches, missing required parameters. Both are cheap, local, and fast.
 
-2. **Push.** The agent pushes the workflow to n8n via n8nac. This assigns `metadata.id` and deploys the workflow. n8n-proctor does not push — the agent coordinates this step independently.
+2. **Push.** The agent pushes the workflow to n8n via `n8nac push`. This assigns `metadata.id` and deploys the workflow. n8n-proctor does not push — the agent coordinates this step independently. (n8nac also offers `push --verify` which re-fetches and validates the deployed workflow, but this is redundant when `skills validate` was already run locally.)
 
 3. **Test (after push).** Execution-backed testing runs against a live n8n instance after the workflow has been pushed/deployed. It catches runtime problems that static analysis cannot: Code node output shape, LLM response format, conditional logic correctness, actual data values. This step has real cost and requires the workflow to exist in n8n.
 
-Validate and test are separate tools producing separate evidence types (`static` and `execution` respectively). The agent coordinates the push step between them via n8nac.
+n8nac's `skills validate` (local files) and `verify` (deployed workflows) use the same validation engine and bundled schema data. Both are available as diagnostic tools at any point during development.
+
+Validate and test are separate tools producing separate evidence types (`static` and `execution`). The agent coordinates the push step between them via n8nac.
 
 ---
 
@@ -358,6 +362,52 @@ This often includes:
 * ad hoc tests that do not improve confidence proportionally to their cost
 
 Preventing agent thrash is a central reason this project exists.
+
+---
+
+## Analysis coverage
+
+**Analysis coverage** is a structured assessment of how much of the validation scope is statically analyzable.
+
+The tool classifies each node in the target scope by its output-shape behavior:
+
+* **shape-preserving** — passes items through unchanged (e.g., If, Switch)
+* **shape-augmenting** — adds fields but preserves existing ones (e.g., Set)
+* **shape-replacing** — replaces the output shape entirely (e.g., HTTP Request, database nodes)
+* **shape-opaque** — output cannot be determined statically (e.g., Code node, AI Transform)
+
+The **analyzable ratio** is the fraction of in-scope nodes that are not opaque. A low ratio signals reduced confidence in static-only validation — the agent should consider execution-backed testing.
+
+Analysis coverage is always included in the diagnostic summary. It helps the agent understand how much of the validation scope was meaningfully assessed.
+
+---
+
+## Next action
+
+A **next action** is a structured recommendation attached to a diagnostic summary, encoding the highest-value next step the agent should take.
+
+The recommendation is derived from the combination of status, errors, guardrail decisions, and warnings in the current result. Examples:
+
+* `fix-errors` — errors were found; fix the listed issues
+* `fix-workflow` — the workflow could not be parsed
+* `push-workflow` — the workflow has no `metadata.id`; push before testing
+* `review-warnings` — validation passed but warnings exist
+* `continue-building` — validation passed; proceed with development
+* `force-revalidate` — validation was skipped but can be overridden
+
+The next action is a convenience signal, not a command. The agent decides what to do — the tool suggests what is most likely to be useful.
+
+---
+
+## Disconnected node
+
+A **disconnected node** is a node in the workflow graph that is unreachable from any trigger.
+
+Disconnected nodes indicate wiring problems — the node exists but will never execute because no path connects it to the workflow's entry points. The tool reports disconnected nodes as warning or info hints in the diagnostic summary.
+
+Disabled nodes that are disconnected are reported at info severity (they are intentionally inactive). Active disconnected nodes are reported at warning severity.
+
+
 
 ---
 

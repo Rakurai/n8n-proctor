@@ -136,7 +136,9 @@ async function run(ctx: IntegrationContext): Promise<void> {
       throw new Error('Expected hints array in test diagnostic');
     }
 
-    // Test 8: test tool on no-id fixture — "test before push" → precondition_error envelope (SP2)
+    // Test 8: test tool on no-id fixture — "test before push" → error diagnostic (SP2)
+    // interpret() returns an errorDiagnostic (status:'error') rather than throwing,
+    // so the MCP envelope is success:true with an error-status diagnostic inside.
     const noIdPath = resolve(join(ctx.fixturesDir, 'no-id.ts'));
     const noIdResult = await client.test({
       workflowPath: noIdPath,
@@ -144,17 +146,17 @@ async function run(ctx: IntegrationContext): Promise<void> {
       force: true,
     });
 
-    if (noIdResult.success) {
-      throw new Error(`Expected test on no-id fixture to return success:false with precondition_error, got success:true`);
+    if (!noIdResult.success) {
+      throw new Error(`Expected test on no-id fixture to return success:true with error diagnostic, got success:false`);
     }
-    if (!noIdResult.error) {
-      throw new Error('Expected error envelope, got none');
+    const noIdData = noIdResult.data as Record<string, unknown>;
+    if (noIdData.status !== 'error') {
+      throw new Error(`Expected diagnostic status 'error', got '${noIdData.status}'`);
     }
-    if (noIdResult.error.type !== 'precondition_error') {
-      throw new Error(`Expected error type 'precondition_error', got '${noIdResult.error.type}'`);
-    }
-    if (!noIdResult.error.message.includes('metadata.id')) {
-      throw new Error(`Expected error message to mention 'metadata.id', got: '${noIdResult.error.message}'`);
+    const noIdErrors = noIdData.errors as Array<{ message: string }>;
+    const mentionsMetadataId = noIdErrors?.some((e) => e.message.includes('metadata.id'));
+    if (!mentionsMetadataId) {
+      throw new Error(`Expected error message to mention 'metadata.id', got: ${JSON.stringify(noIdErrors)}`);
     }
   } finally {
     if (client) await client.close();

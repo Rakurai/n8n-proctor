@@ -12,6 +12,7 @@ import type {
   ResolvedTarget,
   ValidationMeta,
 } from '../../types/diagnostic.js';
+import type { NodeClassification } from '../../types/graph.js';
 import type { GuardrailDecision } from '../../types/guardrail.js';
 import type { TrustState } from '../../types/trust.js';
 import type { OrchestratorDeps } from '../types.js';
@@ -28,6 +29,7 @@ export function buildSynthesis(
   resolvedTarget: ResolvedTarget,
   capabilities: AvailableCapabilities,
   meta: ValidationMeta,
+  nodeClassifications: Map<string, NodeClassification>,
   deps: Pick<OrchestratorDeps, 'diagnostics'>,
 ): DiagnosticSummary {
   // Deduplicate static findings by (node, kind, message)
@@ -47,6 +49,7 @@ export function buildSynthesis(
     resolvedTarget,
     capabilities,
     meta,
+    nodeClassifications,
   });
 
   // Append execution errors (e.g., missing metadata.id) to the summary
